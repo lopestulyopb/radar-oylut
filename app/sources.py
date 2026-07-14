@@ -1,16 +1,5 @@
 SOURCES = [
     {
-        "name": "TH+ João Pessoa",
-        "feeds": [
-            "https://thmais.com.br/joao-pessoa/feed/",
-            "https://thmais.com.br/feed/",
-        ],
-        "pages": [
-            "https://thmais.com.br/joao-pessoa/",
-        ],
-        "hosts": {"thmais.com.br", "www.thmais.com.br"},
-    },
-    {
         "name": "ClickPB",
         "feeds": [
             "https://www.clickpb.com.br/feed",
@@ -32,6 +21,9 @@ SOURCES = [
             "https://jornaldaparaiba.com.br/ultimas",
             "https://jornaldaparaiba.com.br/",
         ],
-        "hosts": {"jornaldaparaiba.com.br", "www.jornaldaparaiba.com.br"},
+        "hosts": {
+            "jornaldaparaiba.com.br",
+            "www.jornaldaparaiba.com.br",
+        },
     },
 ]
