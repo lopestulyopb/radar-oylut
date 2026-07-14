@@ -1,1 +1,0 @@
-SOURCES=["https://thmais.com.br/joao-pessoa/","https://www.clickpb.com.br/","https://jornaldaparaiba.com.br/"]
