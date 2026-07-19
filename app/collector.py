@@ -1,6 +1,9 @@
+import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
-from urllib.parse import urljoin, urlparse, urldefrag
+from urllib.parse import urldefrag, urljoin, urlparse
+from zoneinfo import ZoneInfo
 
 import feedparser
 import httpx
@@ -9,20 +12,29 @@ from dateutil import parser as date_parser
 
 
 JORNAL_FEED = "https://jornaldaparaiba.com.br/feed"
-
 CLICKPB_LATEST = "https://www.clickpb.com.br/ultimas-noticias"
-
 MAISPB_LATEST = "https://www.maispb.com.br/ultimas-noticias?cat=22498"
-
 PORTAL_CORREIO_LATEST = "https://portalcorreio.com.br/noticias/"
+
+LOCAL_TIMEZONE = ZoneInfo("America/Fortaleza")
+
+# O Radar coleta mais candidatos do que o resultado final,
+# porque várias matérias podem ser descartadas pelo filtro de tempo.
+HTML_CANDIDATE_LIMIT = 60
 
 
 def parse_datetime(value):
+    """
+    Converte diferentes formatos de data para UTC.
+
+    Quando a página informa data sem fuso horário,
+    assume-se o horário local da Paraíba.
+    """
     if not value:
         return None
 
     try:
-        dt = date_parser.parse(str(value))
+        dt = date_parser.parse(str(value), dayfirst=True)
     except (ValueError, TypeError, OverflowError):
         try:
             dt = parsedate_to_datetime(str(value))
@@ -30,12 +42,16 @@ def parse_datetime(value):
             return None
 
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=LOCAL_TIMEZONE)
 
     return dt.astimezone(timezone.utc)
 
 
 def normalize_url(base_url, href):
+    """
+    Converte links relativos em absolutos e remove parâmetros,
+    fragmentos e barras finais desnecessárias.
+    """
     if not href:
         return None
 
@@ -96,23 +112,18 @@ def is_maispb_article(url):
     }:
         return False
 
-    # Formato esperado:
-    # /840217/titulo-da-noticia.html
+    # Padrão esperado:
+    # /841092/titulo-da-noticia.html
     if len(parts) != 2:
         return False
 
     article_id, slug = parts
 
-    if not article_id.isdigit():
-        return False
-
-    if len(article_id) < 5:
-        return False
-
-    if not slug.endswith(".html"):
-        return False
-
-    return True
+    return (
+        article_id.isdigit()
+        and len(article_id) >= 5
+        and slug.endswith(".html")
+    )
 
 
 def is_portal_correio_article(url):
@@ -127,7 +138,7 @@ def is_portal_correio_article(url):
     }:
         return False
 
-    # As matérias do Portal Correio ficam diretamente na raiz:
+    # As matérias do Portal Correio ficam normalmente na raiz:
     # /titulo-da-noticia/
     if len(parts) != 1:
         return False
@@ -144,6 +155,7 @@ def is_portal_correio_article(url):
         "entretenimento",
         "editais",
         "busca",
+        "dino",
         "fale-conosco",
         "politica-de-privacidade",
     }
@@ -154,7 +166,6 @@ def is_portal_correio_article(url):
     if slug.startswith(("page-", "tag-", "author-")):
         return False
 
-    # Evita páginas institucionais e caminhos muito curtos.
     return len(slug.split("-")) >= 4
 
 
@@ -168,11 +179,140 @@ async def fetch(client, url):
         return None
 
 
-async def collect_html_articles(
+def extract_dates_from_json_ld(data):
+    """
+    Procura datas de publicação em estruturas JSON-LD.
+    """
+    dates = []
+
+    if isinstance(data, dict):
+        for key in (
+            "datePublished",
+            "dateCreated",
+            "uploadDate",
+            "dateModified",
+        ):
+            value = data.get(key)
+
+            if value:
+                dates.append(value)
+
+        for value in data.values():
+            dates.extend(extract_dates_from_json_ld(value))
+
+    elif isinstance(data, list):
+        for item in data:
+            dates.extend(extract_dates_from_json_ld(item))
+
+    return dates
+
+
+def extract_publication_datetime(html):
+    """
+    Extrai a data de publicação da página da matéria.
+
+    Ordem de prioridade:
+    1. metatags de publicação;
+    2. JSON-LD;
+    3. elementos <time>;
+    4. textos visíveis em padrões comuns.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    candidates = []
+
+    meta_selectors = [
+        ('meta[property="article:published_time"]', "content"),
+        ('meta[name="article:published_time"]', "content"),
+        ('meta[property="og:published_time"]', "content"),
+        ('meta[name="publication_date"]', "content"),
+        ('meta[name="publish-date"]', "content"),
+        ('meta[name="pubdate"]', "content"),
+        ('meta[itemprop="datePublished"]', "content"),
+        ('meta[itemprop="dateCreated"]', "content"),
+        ('meta[name="date"]', "content"),
+    ]
+
+    for selector, attribute in meta_selectors:
+        element = soup.select_one(selector)
+
+        if element:
+            value = element.get(attribute)
+
+            if value:
+                candidates.append(value)
+
+    for script in soup.select('script[type="application/ld+json"]'):
+        content = script.string or script.get_text(strip=True)
+
+        if not content:
+            continue
+
+        try:
+            data = json.loads(content)
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+        candidates.extend(extract_dates_from_json_ld(data))
+
+    for time_element in soup.select("time"):
+        value = (
+            time_element.get("datetime")
+            or time_element.get("content")
+            or time_element.get_text(" ", strip=True)
+        )
+
+        if value:
+            candidates.append(value)
+
+    # Alguns portais imprimem a data diretamente em classes específicas.
+    visible_date_selectors = [
+        '[class*="date"]',
+        '[class*="data"]',
+        '[class*="publish"]',
+        '[class*="posted"]',
+        '[class*="time"]',
+    ]
+
+    for selector in visible_date_selectors:
+        for element in soup.select(selector)[:20]:
+            text = element.get_text(" ", strip=True)
+
+            if text:
+                candidates.append(text)
+
+    valid_dates = []
+
+    for candidate in candidates:
+        dt = parse_datetime(candidate)
+
+        if dt:
+            valid_dates.append(dt)
+
+    if not valid_dates:
+        return None
+
+    now = datetime.now(timezone.utc)
+
+    # Evita usar datas futuras ou datas antigas de atualização do site.
+    plausible_dates = [
+        dt
+        for dt in valid_dates
+        if dt <= now + timedelta(minutes=15)
+    ]
+
+    if not plausible_dates:
+        return None
+
+    # Normalmente a menor data representa a publicação original,
+    # enquanto datas maiores podem representar atualizações.
+    return min(plausible_dates)
+
+
+async def collect_html_candidates(
     client,
     page_url,
     validator,
-    limit=20,
+    limit=HTML_CANDIDATE_LIMIT,
 ):
     response = await fetch(client, page_url)
 
@@ -180,18 +320,15 @@ async def collect_html_articles(
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
-
     links = []
     seen = set()
 
-    # Prioriza links que estejam em títulos de matérias.
     selectors = [
+        "main article a[href]",
         "main h1 a[href]",
         "main h2 a[href]",
         "main h3 a[href]",
-        "article h1 a[href]",
-        "article h2 a[href]",
-        "article h3 a[href]",
+        "article a[href]",
         "h1 a[href]",
         "h2 a[href]",
         "h3 a[href]",
@@ -220,34 +357,91 @@ async def collect_html_articles(
     return links
 
 
-async def collect_clickpb_latest_20(client):
-    return await collect_html_articles(
+async def filter_html_links_by_hours(
+    client,
+    links,
+    hours,
+    concurrency=8,
+):
+    """
+    Abre as matérias e mantém somente as publicadas
+    dentro da janela solicitada.
+    """
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=hours)
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def inspect(url):
+        async with semaphore:
+            response = await fetch(client, url)
+
+        if response is None:
+            return None
+
+        published_at = extract_publication_datetime(response.text)
+
+        if published_at is None:
+            print(f"Data não encontrada: {url}")
+            return None
+
+        if cutoff <= published_at <= now + timedelta(minutes=15):
+            return url
+
+        return None
+
+    checked = await asyncio.gather(
+        *(inspect(url) for url in links)
+    )
+
+    return [url for url in checked if url]
+
+
+async def collect_clickpb(client, hours):
+    candidates = await collect_html_candidates(
         client=client,
         page_url=CLICKPB_LATEST,
         validator=is_clickpb_article,
-        limit=20,
+    )
+
+    return await filter_html_links_by_hours(
+        client=client,
+        links=candidates,
+        hours=hours,
     )
 
 
-async def collect_maispb_latest_20(client):
-    return await collect_html_articles(
+async def collect_maispb(client, hours):
+    candidates = await collect_html_candidates(
         client=client,
         page_url=MAISPB_LATEST,
         validator=is_maispb_article,
-        limit=20,
+    )
+
+    return await filter_html_links_by_hours(
+        client=client,
+        links=candidates,
+        hours=hours,
     )
 
 
-async def collect_portal_correio_latest_20(client):
-    return await collect_html_articles(
+async def collect_portal_correio(client, hours):
+    candidates = await collect_html_candidates(
         client=client,
         page_url=PORTAL_CORREIO_LATEST,
         validator=is_portal_correio_article,
-        limit=20,
+    )
+
+    return await filter_html_links_by_hours(
+        client=client,
+        links=candidates,
+        hours=hours,
     )
 
 
-async def collect_jornal_last_24h(client, hours=24):
+async def collect_jornal(client, hours):
+    """
+    O Jornal da Paraíba continua sendo filtrado pelo RSS.
+    """
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=hours)
 
@@ -257,7 +451,6 @@ async def collect_jornal_last_24h(client, hours=24):
         return []
 
     feed = feedparser.parse(response.content)
-
     links = []
     seen = set()
 
@@ -305,6 +498,10 @@ async def collect_jornal_last_24h(client, hours=24):
 
 
 async def collect_links(hours=24):
+    """
+    Coleta links publicados no período solicitado
+    nas quatro fontes monitoradas.
+    """
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -323,19 +520,22 @@ async def collect_links(hours=24):
     async with httpx.AsyncClient(
         headers=headers,
         follow_redirects=True,
-        timeout=20,
+        timeout=25,
+        limits=httpx.Limits(
+            max_connections=12,
+            max_keepalive_connections=8,
+        ),
     ) as client:
-        clickpb = await collect_clickpb_latest_20(client)
-
-        jornal = await collect_jornal_last_24h(
-            client,
-            hours=hours,
-        )
-
-        maispb = await collect_maispb_latest_20(client)
-
-        portal_correio = (
-            await collect_portal_correio_latest_20(client)
+        (
+            clickpb,
+            jornal,
+            maispb,
+            portal_correio,
+        ) = await asyncio.gather(
+            collect_clickpb(client, hours),
+            collect_jornal(client, hours),
+            collect_maispb(client, hours),
+            collect_portal_correio(client, hours),
         )
 
     result = []
