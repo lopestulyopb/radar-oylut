@@ -6,10 +6,10 @@ from app.collector import collect_links
 app = FastAPI(
     title="Radar Oylut",
     description=(
-        "Retorna links recentes do ClickPB, Jornal da Paraíba, "
-        "MaisPB e Portal Correio."
+        "Retorna notícias publicadas no período solicitado "
+        "pelo ClickPB, Jornal da Paraíba, MaisPB e Portal Correio."
     ),
-    version="3.2.0",
+    version="4.0.0",
 )
 
 
@@ -18,20 +18,25 @@ def home():
     return {
         "servico": "Radar Oylut",
         "status": "online",
-        "versao": "3.2.0",
+        "versao": "4.0.0",
         "fontes": {
-            "ClickPB": "20 últimas notícias",
-            "Jornal da Paraíba": "últimas 24 horas",
-            "MaisPB": "20 últimas notícias",
-            "Portal Correio": "20 últimas notícias",
+            "ClickPB": "notícias do período solicitado",
+            "Jornal da Paraíba": "notícias do período solicitado",
+            "MaisPB": "notícias do período solicitado",
+            "Portal Correio": "notícias do período solicitado",
         },
+        "periodo_padrao": "24 horas",
         "rota": "/radar",
+        "exemplo": "/radar?horas=24",
     }
 
 
 @app.get("/saude")
 def saude():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "versao": "4.0.0",
+    }
 
 
 @app.get(
@@ -45,8 +50,7 @@ async def radar(
         ge=1,
         le=72,
         description=(
-            "Período aplicado somente às matérias "
-            "do Jornal da Paraíba."
+            "Período em horas aplicado a todas as fontes."
         ),
     ),
 ):
