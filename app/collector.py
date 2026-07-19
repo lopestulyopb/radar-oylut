@@ -20,7 +20,7 @@ LOCAL_TIMEZONE = ZoneInfo("America/Fortaleza")
 
 # O Radar coleta mais candidatos do que o resultado final,
 # porque várias matérias podem ser descartadas pelo filtro de tempo.
-HTML_CANDIDATE_LIMIT = 60
+HTML_CANDIDATE_LIMIT = 25
 
 
 def parse_datetime(value):
