@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.collector import collect_links
+from app.collector import collect_news
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
@@ -16,7 +16,7 @@ COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
 app = FastAPI(
     title="Radar Oylut",
     description="Radar jornalístico protegido por login.",
-    version="4.0.0",
+    version="5.0.0",
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -160,17 +160,17 @@ async def sair():
 
 @app.get("/saude")
 def saude():
-    return {"status": "ok", "versao": "4.0.0"}
+    return {"status": "ok", "versao": "5.0.0"}
 
 
-@app.get("/radar", response_model=list[str], operation_id="buscarLinksRecentes")
+@app.get("/radar", operation_id="buscarNoticiasRecentes")
 async def radar(request: Request, horas: int = Query(default=24, ge=1, le=24)):
     user, refreshed = await validate_or_refresh_session(request)
     if not user:
         return JSONResponse({"detail": "Não autenticado"}, status_code=401)
 
-    links = await collect_links(hours=horas)
-    response = JSONResponse(links)
+    noticias = await collect_news(hours=horas)
+    response = JSONResponse(noticias)
     if refreshed:
         set_auth_cookies(response, *refreshed)
     return response

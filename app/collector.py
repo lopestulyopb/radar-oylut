@@ -1,9 +1,10 @@
 import asyncio
-import json
+import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
+from difflib import SequenceMatcher
 from email.utils import parsedate_to_datetime
 from urllib.parse import urldefrag, urljoin, urlparse
-from zoneinfo import ZoneInfo
 
 import feedparser
 import httpx
@@ -13,28 +14,76 @@ from dateutil import parser as date_parser
 
 JORNAL_FEED = "https://jornaldaparaiba.com.br/feed"
 CLICKPB_LATEST = "https://www.clickpb.com.br/ultimas-noticias"
-MAISPB_LATEST = "https://www.maispb.com.br/ultimas-noticias?cat=22498"
-PORTAL_CORREIO_LATEST = "https://portalcorreio.com.br/noticias/"
 
-LOCAL_TIMEZONE = ZoneInfo("America/Fortaleza")
+EDITORIA_LABELS = {
+    "policial": "Segurança",
+    "seguranca": "Segurança",
+    "cotidiano": "Cotidiano",
+    "paraiba": "Paraíba",
+    "politica": "Política",
+    "economia": "Economia",
+    "emprego": "Serviço",
+    "concursos": "Serviço",
+    "educacao": "Educação",
+    "saude": "Saúde",
+    "esporte": "Esportes",
+    "esportes": "Esportes",
+    "cultura": "Cultura",
+    "entretenimento": "Entretenimento",
+    "qualaboa": "Cultura e entretenimento",
+    "brasil": "Brasil",
+    "mundo": "Mundo",
+}
 
-# O Radar coleta mais candidatos do que o resultado final,
-# porque várias matérias podem ser descartadas pelo filtro de tempo.
-HTML_CANDIDATE_LIMIT = 25
+GRAVIDADE_KEYWORDS = {
+    "morre": 5,
+    "morte": 5,
+    "homicidio": 5,
+    "assassin": 5,
+    "acidente": 4,
+    "atropel": 4,
+    "desaparecid": 4,
+    "preso": 3,
+    "prisao": 3,
+    "estupro": 5,
+    "tiroteio": 5,
+    "incendio": 4,
+    "explosao": 5,
+    "alagamento": 3,
+    "interdicao": 3,
+    "suspensao": 2,
+    "sem agua": 3,
+    "falta de agua": 3,
+    "vagas": 2,
+    "concurso": 2,
+    "alerta": 2,
+}
+
+EDITORIA_BASE = {
+    "Segurança": 8,
+    "Cotidiano": 7,
+    "Paraíba": 7,
+    "Saúde": 6,
+    "Serviço": 6,
+    "Brasil": 5,
+    "Economia": 5,
+    "Política": 4,
+    "Mundo": 4,
+    "Educação": 4,
+    "Esportes": 2,
+    "Cultura": 1,
+    "Entretenimento": 1,
+    "Cultura e entretenimento": 1,
+    "Geral": 3,
+}
 
 
 def parse_datetime(value):
-    """
-    Converte diferentes formatos de data para UTC.
-
-    Quando a página informa data sem fuso horário,
-    assume-se o horário local da Paraíba.
-    """
     if not value:
         return None
 
     try:
-        dt = date_parser.parse(str(value), dayfirst=True)
+        dt = date_parser.parse(str(value))
     except (ValueError, TypeError, OverflowError):
         try:
             dt = parsedate_to_datetime(str(value))
@@ -42,21 +91,16 @@ def parse_datetime(value):
             return None
 
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=LOCAL_TIMEZONE)
+        dt = dt.replace(tzinfo=timezone.utc)
 
     return dt.astimezone(timezone.utc)
 
 
 def normalize_url(base_url, href):
-    """
-    Converte links relativos em absolutos e remove parâmetros,
-    fragmentos e barras finais desnecessárias.
-    """
     if not href:
         return None
 
     href = href.strip()
-
     if href.startswith(("mailto:", "tel:", "javascript:", "#")):
         return None
 
@@ -67,10 +111,22 @@ def normalize_url(base_url, href):
     if parsed.scheme not in {"http", "https"}:
         return None
 
-    return parsed._replace(
-        query="",
-        fragment="",
-    ).geturl().rstrip("/")
+    return parsed._replace(query="", fragment="").geturl().rstrip("/")
+
+
+def normalize_text(value):
+    value = unicodedata.normalize("NFKD", value or "")
+    value = "".join(char for char in value if not unicodedata.combining(char))
+    value = re.sub(r"[^a-zA-Z0-9\s]", " ", value).lower()
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def clean_text(value, limit=None):
+    text = BeautifulSoup(value or "", "html.parser").get_text(" ", strip=True)
+    text = re.sub(r"\s+", " ", text).strip()
+    if limit and len(text) > limit:
+        text = text[: limit - 1].rstrip() + "…"
+    return text
 
 
 def is_clickpb_article(url):
@@ -79,10 +135,7 @@ def is_clickpb_article(url):
     path = parsed.path.lower().rstrip("/")
     parts = [part for part in path.split("/") if part]
 
-    if host not in {
-        "clickpb.com.br",
-        "www.clickpb.com.br",
-    }:
+    if host not in {"clickpb.com.br", "www.clickpb.com.br"}:
         return False
 
     blocked = {
@@ -100,459 +153,247 @@ def is_clickpb_article(url):
     return len(parts) >= 2 and path.endswith(".html")
 
 
-def is_maispb_article(url):
-    parsed = urlparse(url)
-    host = parsed.netloc.lower()
-    path = parsed.path.lower().rstrip("/")
-    parts = [part for part in path.split("/") if part]
-
-    if host not in {
-        "maispb.com.br",
-        "www.maispb.com.br",
-    }:
-        return False
-
-    # Padrão esperado:
-    # /841092/titulo-da-noticia.html
-    if len(parts) != 2:
-        return False
-
-    article_id, slug = parts
-
-    return (
-        article_id.isdigit()
-        and len(article_id) >= 5
-        and slug.endswith(".html")
-    )
-
-
-def is_portal_correio_article(url):
-    parsed = urlparse(url)
-    host = parsed.netloc.lower()
-    path = parsed.path.lower().strip("/")
-    parts = [part for part in path.split("/") if part]
-
-    if host not in {
-        "portalcorreio.com.br",
-        "www.portalcorreio.com.br",
-    }:
-        return False
-
-    # As matérias do Portal Correio ficam normalmente na raiz:
-    # /titulo-da-noticia/
-    if len(parts) != 1:
-        return False
-
-    slug = parts[0]
-
-    blocked = {
-        "noticias",
-        "politica",
-        "cotidiano",
-        "economia",
-        "saude",
-        "esportes",
-        "entretenimento",
-        "editais",
-        "busca",
-        "dino",
-        "fale-conosco",
-        "politica-de-privacidade",
-    }
-
-    if slug in blocked:
-        return False
-
-    if slug.startswith(("page-", "tag-", "author-")):
-        return False
-
-    return len(slug.split("-")) >= 4
-
-
 async def fetch(client, url):
     try:
         response = await client.get(url)
         response.raise_for_status()
         return response
-    except Exception as error:
-        print(f"Erro ao acessar {url}: {error}")
+    except Exception:
         return None
 
 
-def extract_dates_from_json_ld(data):
-    """
-    Procura datas de publicação em estruturas JSON-LD.
-    """
-    dates = []
-
-    if isinstance(data, dict):
-        for key in (
-            "datePublished",
-            "dateCreated",
-            "uploadDate",
-            "dateModified",
-        ):
-            value = data.get(key)
-
-            if value:
-                dates.append(value)
-
-        for value in data.values():
-            dates.extend(extract_dates_from_json_ld(value))
-
-    elif isinstance(data, list):
-        for item in data:
-            dates.extend(extract_dates_from_json_ld(item))
-
-    return dates
+def infer_source(url):
+    host = urlparse(url).netloc.lower()
+    if "clickpb" in host:
+        return "ClickPB"
+    if "jornaldaparaiba" in host:
+        return "Jornal da Paraíba"
+    return host.replace("www.", "")
 
 
-def extract_publication_datetime(html):
-    """
-    Extrai a data de publicação da página da matéria.
+def infer_editoria(url, title=""):
+    parts = [part for part in urlparse(url).path.lower().split("/") if part]
+    for part in parts:
+        if part in EDITORIA_LABELS:
+            return EDITORIA_LABELS[part]
 
-    Ordem de prioridade:
-    1. metatags de publicação;
-    2. JSON-LD;
-    3. elementos <time>;
-    4. textos visíveis em padrões comuns.
-    """
-    soup = BeautifulSoup(html, "html.parser")
-    candidates = []
-
-    meta_selectors = [
-        ('meta[property="article:published_time"]', "content"),
-        ('meta[name="article:published_time"]', "content"),
-        ('meta[property="og:published_time"]', "content"),
-        ('meta[name="publication_date"]', "content"),
-        ('meta[name="publish-date"]', "content"),
-        ('meta[name="pubdate"]', "content"),
-        ('meta[itemprop="datePublished"]', "content"),
-        ('meta[itemprop="dateCreated"]', "content"),
-        ('meta[name="date"]', "content"),
-    ]
-
-    for selector, attribute in meta_selectors:
-        element = soup.select_one(selector)
-
-        if element:
-            value = element.get(attribute)
-
-            if value:
-                candidates.append(value)
-
-    for script in soup.select('script[type="application/ld+json"]'):
-        content = script.string or script.get_text(strip=True)
-
-        if not content:
-            continue
-
-        try:
-            data = json.loads(content)
-        except (json.JSONDecodeError, TypeError):
-            continue
-
-        candidates.extend(extract_dates_from_json_ld(data))
-
-    for time_element in soup.select("time"):
-        value = (
-            time_element.get("datetime")
-            or time_element.get("content")
-            or time_element.get_text(" ", strip=True)
-        )
-
-        if value:
-            candidates.append(value)
-
-    # Alguns portais imprimem a data diretamente em classes específicas.
-    visible_date_selectors = [
-        '[class*="date"]',
-        '[class*="data"]',
-        '[class*="publish"]',
-        '[class*="posted"]',
-        '[class*="time"]',
-    ]
-
-    for selector in visible_date_selectors:
-        for element in soup.select(selector)[:20]:
-            text = element.get_text(" ", strip=True)
-
-            if text:
-                candidates.append(text)
-
-    valid_dates = []
-
-    for candidate in candidates:
-        dt = parse_datetime(candidate)
-
-        if dt:
-            valid_dates.append(dt)
-
-    if not valid_dates:
-        return None
-
-    now = datetime.now(timezone.utc)
-
-    # Evita usar datas futuras ou datas antigas de atualização do site.
-    plausible_dates = [
-        dt
-        for dt in valid_dates
-        if dt <= now + timedelta(minutes=15)
-    ]
-
-    if not plausible_dates:
-        return None
-
-    # Normalmente a menor data representa a publicação original,
-    # enquanto datas maiores podem representar atualizações.
-    return min(plausible_dates)
+    normalized = normalize_text(title)
+    if any(word in normalized for word in ("preso", "policia", "homicidio", "crime", "assassin")):
+        return "Segurança"
+    if any(word in normalized for word in ("vaga", "concurso", "inscricao", "abastecimento")):
+        return "Serviço"
+    return "Geral"
 
 
-async def collect_html_candidates(
-    client,
-    page_url,
-    validator,
-    limit=HTML_CANDIDATE_LIMIT,
-):
-    response = await fetch(client, page_url)
+def calculate_weight(title, summary, editoria, published_at):
+    text = normalize_text(f"{title} {summary}")
+    score = EDITORIA_BASE.get(editoria, 3)
 
+    for keyword, points in GRAVIDADE_KEYWORDS.items():
+        if keyword in text:
+            score += points
+
+    if published_at:
+        age_hours = max(0, (datetime.now(timezone.utc) - published_at).total_seconds() / 3600)
+        if age_hours <= 1:
+            score += 3
+        elif age_hours <= 2:
+            score += 2
+        elif age_hours <= 6:
+            score += 1
+
+    return min(score, 20)
+
+
+def meta_content(soup, selectors):
+    for attrs in selectors:
+        tag = soup.find("meta", attrs=attrs)
+        if tag and tag.get("content"):
+            return tag["content"].strip()
+    return ""
+
+
+async def collect_clickpb_candidates(client):
+    response = await fetch(client, CLICKPB_LATEST)
     if response is None:
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
-    links = []
+    candidates = []
     seen = set()
 
-    selectors = [
-        "main article a[href]",
-        "main h1 a[href]",
-        "main h2 a[href]",
-        "main h3 a[href]",
-        "article a[href]",
-        "h1 a[href]",
-        "h2 a[href]",
-        "h3 a[href]",
-        "a[href]",
-    ]
+    for anchor in soup.select("a[href]"):
+        url = normalize_url(CLICKPB_LATEST, anchor.get("href"))
+        if not url or not is_clickpb_article(url) or url in seen:
+            continue
 
-    for selector in selectors:
-        for anchor in soup.select(selector):
-            url = normalize_url(
-                page_url,
-                anchor.get("href"),
-            )
+        seen.add(url)
+        candidates.append({"url": url})
+        if len(candidates) == 20:
+            break
 
-            if not url or not validator(url):
-                continue
-
-            if url in seen:
-                continue
-
-            seen.add(url)
-            links.append(url)
-
-            if len(links) >= limit:
-                return links
-
-    return links
+    return candidates
 
 
-async def filter_html_links_by_hours(
-    client,
-    links,
-    hours,
-    concurrency=8,
-):
-    """
-    Abre as matérias e mantém somente as publicadas
-    dentro da janela solicitada.
-    """
+async def collect_jornal_candidates(client, hours):
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=hours)
-    semaphore = asyncio.Semaphore(concurrency)
-
-    async def inspect(url):
-        async with semaphore:
-            response = await fetch(client, url)
-
-        if response is None:
-            return None
-
-        published_at = extract_publication_datetime(response.text)
-
-        if published_at is None:
-            print(f"Data não encontrada: {url}")
-            return None
-
-        if cutoff <= published_at <= now + timedelta(minutes=15):
-            return url
-
-        return None
-
-    checked = await asyncio.gather(
-        *(inspect(url) for url in links)
-    )
-
-    return [url for url in checked if url]
-
-
-async def collect_clickpb(client, hours):
-    candidates = await collect_html_candidates(
-        client=client,
-        page_url=CLICKPB_LATEST,
-        validator=is_clickpb_article,
-    )
-
-    return await filter_html_links_by_hours(
-        client=client,
-        links=candidates,
-        hours=hours,
-    )
-
-
-async def collect_maispb(client, hours):
-    candidates = await collect_html_candidates(
-        client=client,
-        page_url=MAISPB_LATEST,
-        validator=is_maispb_article,
-    )
-
-    return await filter_html_links_by_hours(
-        client=client,
-        links=candidates,
-        hours=hours,
-    )
-
-
-async def collect_portal_correio(client, hours):
-    candidates = await collect_html_candidates(
-        client=client,
-        page_url=PORTAL_CORREIO_LATEST,
-        validator=is_portal_correio_article,
-    )
-
-    return await filter_html_links_by_hours(
-        client=client,
-        links=candidates,
-        hours=hours,
-    )
-
-
-async def collect_jornal(client, hours):
-    """
-    O Jornal da Paraíba continua sendo filtrado pelo RSS.
-    """
-    now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(hours=hours)
-
     response = await fetch(client, JORNAL_FEED)
-
     if response is None:
         return []
 
     feed = feedparser.parse(response.content)
-    links = []
+    candidates = []
     seen = set()
 
     for entry in feed.entries:
-        url = normalize_url(
-            JORNAL_FEED,
-            entry.get("link", ""),
-        )
-
+        url = normalize_url(JORNAL_FEED, entry.get("link", ""))
         if not url or url in seen:
             continue
 
         dt = None
-
-        for key in (
-            "published",
-            "updated",
-            "created",
-        ):
+        for key in ("published", "updated", "created"):
             dt = parse_datetime(entry.get(key))
-
             if dt:
                 break
 
         if dt is None:
-            struct = (
-                entry.get("published_parsed")
-                or entry.get("updated_parsed")
-            )
-
+            struct = entry.get("published_parsed") or entry.get("updated_parsed")
             if struct:
                 try:
-                    dt = datetime(
-                        *struct[:6],
-                        tzinfo=timezone.utc,
-                    )
+                    dt = datetime(*struct[:6], tzinfo=timezone.utc)
                 except Exception:
                     dt = None
 
-        if dt and cutoff <= dt <= now + timedelta(minutes=15):
-            seen.add(url)
-            links.append(url)
+        if dt and not (cutoff <= dt <= now + timedelta(minutes=15)):
+            continue
 
-    return links
+        seen.add(url)
+        candidates.append(
+            {
+                "url": url,
+                "title": clean_text(entry.get("title", "")),
+                "summary": clean_text(entry.get("summary", ""), 240),
+                "published_at": dt,
+            }
+        )
+
+    return candidates
 
 
-async def collect_links(hours=24):
-    """
-    Coleta links publicados no período solicitado
-    nas quatro fontes monitoradas.
-    """
+async def enrich_article(client, candidate, hours, semaphore):
+    async with semaphore:
+        response = await fetch(client, candidate["url"])
+
+    title = candidate.get("title", "")
+    summary = candidate.get("summary", "")
+    published_at = candidate.get("published_at")
+
+    if response is not None:
+        soup = BeautifulSoup(response.text, "html.parser")
+        title = meta_content(
+            soup,
+            [
+                {"property": "og:title"},
+                {"name": "twitter:title"},
+            ],
+        ) or (clean_text(soup.title.string) if soup.title and soup.title.string else title)
+
+        summary = meta_content(
+            soup,
+            [
+                {"property": "og:description"},
+                {"name": "description"},
+                {"name": "twitter:description"},
+            ],
+        ) or summary
+
+        date_value = meta_content(
+            soup,
+            [
+                {"property": "article:published_time"},
+                {"name": "datePublished"},
+                {"itemprop": "datePublished"},
+            ],
+        )
+        published_at = parse_datetime(date_value) or published_at
+
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=hours)
+    if published_at and not (cutoff <= published_at <= now + timedelta(minutes=15)):
+        return None
+
+    title = clean_text(title, 180)
+    summary = clean_text(summary, 240)
+    if not title:
+        slug = urlparse(candidate["url"]).path.rstrip("/").split("/")[-1]
+        title = slug.replace(".html", "").replace("-", " ").strip().title()
+
+    editoria = infer_editoria(candidate["url"], title)
+    weight = calculate_weight(title, summary, editoria, published_at)
+
+    return {
+        "titulo": title,
+        "link": candidate["url"],
+        "editoria": editoria,
+        "resumo": summary or "Resumo não disponível na fonte.",
+        "peso": weight,
+        "fonte": infer_source(candidate["url"]),
+        "publicado_em": published_at.isoformat() if published_at else None,
+    }
+
+
+def remove_duplicates(items):
+    unique = []
+    for item in sorted(items, key=lambda value: value["peso"], reverse=True):
+        current = normalize_text(item["titulo"])
+        duplicate = False
+
+        for saved in unique:
+            previous = normalize_text(saved["titulo"])
+            similarity = SequenceMatcher(None, current, previous).ratio()
+            current_words = set(current.split())
+            previous_words = set(previous.split())
+            overlap = len(current_words & previous_words) / max(1, min(len(current_words), len(previous_words)))
+
+            if similarity >= 0.72 or overlap >= 0.78:
+                duplicate = True
+                break
+
+        if not duplicate:
+            unique.append(item)
+
+    return unique
+
+
+async def collect_news(hours=24):
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/126.0.0.0 Safari/537.36"
         ),
-        "Accept": (
-            "text/html,"
-            "application/xhtml+xml,"
-            "application/rss+xml,"
-            "application/xml"
-        ),
+        "Accept": "text/html,application/xhtml+xml,application/rss+xml,application/xml",
         "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
     }
 
-    async with httpx.AsyncClient(
-        headers=headers,
-        follow_redirects=True,
-        timeout=25,
-        limits=httpx.Limits(
-            max_connections=12,
-            max_keepalive_connections=8,
-        ),
-    ) as client:
-        (
-            clickpb,
-            jornal,
-            maispb,
-            portal_correio,
-        ) = await asyncio.gather(
-            collect_clickpb(client, hours),
-            collect_jornal(client, hours),
-            collect_maispb(client, hours),
-            collect_portal_correio(client, hours),
+    async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=20) as client:
+        clickpb, jornal = await asyncio.gather(
+            collect_clickpb_candidates(client),
+            collect_jornal_candidates(client, hours),
         )
 
-    result = []
-    seen = set()
+        candidates = []
+        seen = set()
+        for candidate in clickpb + jornal:
+            if candidate["url"] not in seen:
+                seen.add(candidate["url"])
+                candidates.append(candidate)
 
-    all_links = (
-        clickpb
-        + jornal
-        + maispb
-        + portal_correio
-    )
+        semaphore = asyncio.Semaphore(8)
+        tasks = [enrich_article(client, candidate, hours, semaphore) for candidate in candidates]
+        enriched = await asyncio.gather(*tasks)
 
-    for url in all_links:
-        if url in seen:
-            continue
-
-        seen.add(url)
-        result.append(url)
-
-    return result
+    items = [item for item in enriched if item]
+    items = remove_duplicates(items)
+    return sorted(items, key=lambda item: (-item["peso"], item["titulo"].lower()))
