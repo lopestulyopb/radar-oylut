@@ -16,7 +16,7 @@ COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
 app = FastAPI(
     title="Radar Oylut",
     description="Radar jornalístico protegido por login.",
-    version="5.3.0",
+    version="5.4.0",
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -160,16 +160,20 @@ async def sair():
 
 @app.get("/saude")
 def saude():
-    return {"status": "ok", "versao": "5.3.0"}
+    return {"status": "ok", "versao": "5.4.0"}
 
 
 @app.get("/radar", operation_id="buscarNoticiasRecentes")
-async def radar(request: Request, horas: int = Query(default=24, ge=1, le=24)):
+async def radar(
+    request: Request,
+    horas: int = Query(default=24, ge=1, le=24),
+    editoria: str = Query(default="todas", pattern="^(todas|seguranca|servico|esportes|politica|geral)$"),
+):
     user, refreshed = await validate_or_refresh_session(request)
     if not user:
         return JSONResponse({"detail": "Não autenticado"}, status_code=401)
 
-    noticias = await collect_news(hours=horas)
+    noticias = await collect_news(hours=horas, editoria=editoria)
     response = JSONResponse(noticias)
     if refreshed:
         set_auth_cookies(response, *refreshed)

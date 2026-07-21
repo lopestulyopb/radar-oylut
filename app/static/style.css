@@ -95,3 +95,31 @@ a { color: #b8c8ff; }
   .card-actions { justify-content: stretch; }
   .copy-article { width: 100%; }
 }
+
+/* Menu lateral e filtro de editorias */
+body.menu-open { overflow: hidden; }
+.topbar-title { display: flex; align-items: center; gap: 16px; }
+.menu-button, .icon-button { display: inline-grid; place-items: center; min-width: 48px; min-height: 48px; padding: 0; font-size: 1.35rem; }
+.sidebar-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.58); opacity: 0; transition: opacity .18s ease; }
+.sidebar-backdrop.visible { opacity: 1; }
+.sidebar { position: fixed; inset: 0 auto 0 0; z-index: 50; width: min(86vw, 360px); padding: 24px; background: #12151a; border-right: 1px solid #303640; transform: translateX(-102%); transition: transform .2s ease; box-shadow: 18px 0 44px rgba(0,0,0,.34); }
+.sidebar.open { transform: translateX(0); }
+.sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 20px; border-bottom: 1px solid #2b3038; }
+.sidebar-header h2 { margin: 5px 0 0; }
+.sidebar-section { margin-top: 26px; }
+.sidebar-label { margin: 0 0 12px; color: #aeb7c4; font-size: .84rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.editoria-options { display: grid; gap: 8px; }
+.editoria-options input { position: absolute; opacity: 0; pointer-events: none; }
+.editoria-options span { display: block; padding: 14px 15px; border: 1px solid #343b46; border-radius: 12px; background: #171b21; color: #e7ebf1; cursor: pointer; transition: background .16s ease, border-color .16s ease, transform .16s ease; }
+.editoria-options span:hover { transform: translateX(2px); border-color: #596473; }
+.editoria-options input:checked + span { background: #f5f7fa; border-color: #f5f7fa; color: #111317; font-weight: 750; }
+.sidebar-note { margin-top: 26px; color: #7f8997; font-size: .84rem; line-height: 1.5; }
+.selection-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.active-filter { margin: 6px 0 0; color: #9fa9b7; font-size: .9rem; }
+
+@media (max-width: 560px) {
+  .topbar { padding: 20px; }
+  .topbar-title { gap: 12px; }
+  .menu-button { min-width: 44px; min-height: 44px; }
+  .sidebar { padding: 20px; }
+}

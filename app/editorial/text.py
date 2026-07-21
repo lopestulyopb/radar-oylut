@@ -2,7 +2,7 @@ import re
 import unicodedata
 from bs4 import BeautifulSoup
 
-PORTALS = "MaisPB|ClickPB|WSCOM|Polêmica Paraíba|Jornal da Paraíba|G1 Paraíba|Patos Online"
+PORTALS = "MaisPB|ClickPB|Polêmica Paraíba|Jornal da Paraíba|Patos Online|Diário do Sertão"
 
 
 def normalize_text(value: str) -> str:

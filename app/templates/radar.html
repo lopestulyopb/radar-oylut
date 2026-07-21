@@ -7,15 +7,44 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <div id="sidebarBackdrop" class="sidebar-backdrop" hidden></div>
+  <aside id="sidebar" class="sidebar" aria-hidden="true" aria-label="Menu do Radar">
+    <div class="sidebar-header">
+      <div><div class="brand">OYLUT</div><h2>Menu</h2></div>
+      <button id="fecharMenu" class="icon-button secondary" type="button" aria-label="Fechar menu">×</button>
+    </div>
+
+    <div class="sidebar-section">
+      <p class="sidebar-label">Filtrar por editoria</p>
+      <div class="editoria-options" role="radiogroup" aria-label="Escolha a editoria">
+        <label><input type="radio" name="editoria" value="todas" checked><span>Todas as editorias</span></label>
+        <label><input type="radio" name="editoria" value="seguranca"><span>Segurança e trânsito</span></label>
+        <label><input type="radio" name="editoria" value="servico"><span>Serviço, saúde e educação</span></label>
+        <label><input type="radio" name="editoria" value="esportes"><span>Esportes</span></label>
+        <label><input type="radio" name="editoria" value="politica"><span>Política e Justiça</span></label>
+        <label><input type="radio" name="editoria" value="geral"><span>Geral e entretenimento</span></label>
+      </div>
+    </div>
+    <p class="sidebar-note">Este menu poderá receber novas ferramentas nas próximas versões.</p>
+  </aside>
+
   <header class="topbar">
-    <div><div class="brand">OYLUT</div><h1>Radar</h1></div>
+    <div class="topbar-title">
+      <button id="abrirMenu" class="menu-button secondary" type="button" aria-label="Abrir menu" aria-expanded="false">☰</button>
+      <div><div class="brand">OYLUT</div><h1>Radar</h1></div>
+    </div>
     <form method="post" action="/sair"><button class="secondary" type="submit">Sair</button></form>
   </header>
 
   <main class="radar-shell">
     <p class="user">Acesso: {{ email }}</p>
     <section class="control-panel">
-      <h2>Período das notícias</h2>
+      <div class="selection-summary">
+        <div>
+          <h2>Período das notícias</h2>
+          <p id="editoriaAtual" class="active-filter">Editoria: Todas as editorias</p>
+        </div>
+      </div>
       <div class="periods" role="radiogroup" aria-label="Escolha o período">
         {% for hora in [1, 2, 6, 12, 24] %}
           <label><input type="radio" name="horas" value="{{ hora }}" {% if hora == 24 %}checked{% endif %}><span>{{ hora }}h</span></label>

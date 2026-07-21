@@ -1,15 +1,37 @@
-# Radar Oylut — Etapa 3, Sprint 3
+# Radar Oylut — Etapa 3, Sprint 4
 
-Versão 5.3.0.
+Versão 5.4.0.
 
-## Alterações
+## Portais ativos
 
-- Código editorial dividido em módulos de classificação, deduplicação, filtros e limpeza de texto.
-- `collector.py` reduzido e mantido como coordenador da coleta.
-- Sequência rígida: policial; serviço; esporte; política/Justiça; geral/entretenimento.
-- Deduplicação ampliada para atualizações do mesmo caso, vacinação, clima, crise partidária e projetos públicos.
-- Título e resumo passam a ser escolhidos em conjunto, evitando misturar título de uma atualização com resumo de outra.
-- Filtros adicionais para colunas, opinião, releases institucionais e páginas ao vivo.
-- Novas fontes: G1 Paraíba e Patos Online.
-- Links exibidos como botões com efeito gráfico.
-- Botão individual “Copiar notícia” preserva no texto copiado o nome do portal e a URL completa.
+- ClickPB
+- Jornal da Paraíba
+- MaisPB
+- Polêmica Paraíba
+- Patos Online
+- Diário do Sertão
+
+Foram retirados WSCOM e G1 Paraíba.
+
+## Novidades
+
+- Menu lateral preparado para receber outras ferramentas.
+- Filtro por editoria:
+  - Todas as editorias
+  - Segurança e trânsito
+  - Serviço, saúde e educação
+  - Esportes
+  - Política e Justiça
+  - Geral e entretenimento
+- A tela inicial continua priorizando a seleção do período: 1h, 2h, 6h, 12h ou 24h.
+- A editoria selecionada é enviada para o backend.
+- O backend realiza uma pré-classificação antes de abrir cada matéria, reduzindo o número de páginas processadas quando há filtro.
+- A classificação final é conferida após a leitura da matéria.
+- Links das fontes continuam em botões.
+- Ao copiar, as URLs completas continuam no texto.
+
+## Execução
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```

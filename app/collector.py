@@ -17,12 +17,10 @@ from app.editorial.text import clean_text, normalize_text
 JORNAL_FEED = "https://jornaldaparaiba.com.br/feed"
 CLICKPB_LATEST = "https://www.clickpb.com.br/ultimas-noticias"
 MAISPB_LATEST = "https://www.maispb.com.br/ultimas-noticias"
-WSCOM_FEED = "https://wscom.com.br/feed/"
-WSCOM_LATEST = "https://wscom.com.br/category/noticias/"
 POLEMICA_FEED = "https://www.polemicaparaiba.com.br/feed/"
 POLEMICA_LATEST = "https://www.polemicaparaiba.com.br/ultimas-noticias/"
-G1_PARAIBA_FEED = "https://g1.globo.com/rss/g1/pb/paraiba/"
 PATOS_ONLINE_LATEST = "https://patosonline.com/ultimas-noticias/pagina/1"
+DIARIO_SERTAO_LATEST = "https://www.diariodosertao.com.br/"
 
 
 def parse_datetime(value):
@@ -95,10 +93,9 @@ def infer_source(url):
     if "clickpb" in host: return "ClickPB"
     if "jornaldaparaiba" in host: return "Jornal da Paraíba"
     if "maispb" in host: return "MaisPB"
-    if "wscom" in host: return "WSCOM"
     if "polemicaparaiba" in host: return "Polêmica Paraíba"
-    if "g1.globo.com" in host: return "G1 Paraíba"
     if "patosonline" in host: return "Patos Online"
+    if "diariodosertao" in host: return "Diário do Sertão"
     return host.replace("www.", "")
 
 
@@ -117,13 +114,6 @@ def is_maispb_article(url, anchor_text=""):
     return bool(parts) and parts[0] not in blocked and len(clean_text(anchor_text)) >= 24 and len(parts[-1]) >= 15
 
 
-def is_wscom_article(url, anchor_text=""):
-    parsed = urlparse(url)
-    host = parsed.netloc.lower().replace("www.", "")
-    parts = [p for p in parsed.path.lower().strip("/").split("/") if p]
-    blocked = {"category", "tag", "author", "opiniao", "opinioes-e-blogs", "feed", "wp-content", "login", "newsletter"}
-    return host == "wscom.com.br" and len(parts) >= 1 and not any(p in blocked for p in parts) and len(clean_text(anchor_text)) >= 24
-
 
 def is_polemica_article(url, anchor_text=""):
     parsed = urlparse(url)
@@ -133,10 +123,6 @@ def is_polemica_article(url, anchor_text=""):
     return host == "polemicaparaiba.com.br" and len(parts) >= 1 and not any(p in blocked for p in parts) and len(clean_text(anchor_text)) >= 24
 
 
-def is_g1_paraiba_article(url, anchor_text=""):
-    parsed = urlparse(url)
-    return parsed.netloc.lower() == "g1.globo.com" and parsed.path.lower().startswith("/pb/paraiba/") and parsed.path.lower().endswith(".ghtml")
-
 
 def is_patos_online_article(url, anchor_text=""):
     parsed = urlparse(url)
@@ -144,6 +130,19 @@ def is_patos_online_article(url, anchor_text=""):
     parts = [p for p in parsed.path.lower().strip("/").split("/") if p]
     blocked = {"ultimas-noticias", "editorias", "municipios", "paginas", "classificados", "contato", "politica-de-privacidade", "quem-somos", "pagina"}
     return host == "patosonline.com" and bool(parts) and not any(p in blocked for p in parts) and len(clean_text(anchor_text)) >= 24
+
+
+def is_diario_sertao_article(url, anchor_text=""):
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().replace("www.", "")
+    parts = [p for p in parsed.path.lower().strip("/").split("/") if p]
+    blocked = {"colunistas", "eventos", "sobre", "contato", "pesquisa", "radio", "tv", "play", "author", "tag", "feed"}
+    return (
+        host == "diariodosertao.com.br"
+        and bool(parts)
+        and not any(part in blocked for part in parts)
+        and len(clean_text(anchor_text)) >= 24
+    )
 
 
 async def collect_html_candidates(client, page_url, validator, limit=60):
@@ -201,12 +200,6 @@ async def collect_jornal_candidates(client, hours):
     return await collect_feed_candidates(client, JORNAL_FEED, hours, limit=80)
 
 
-async def collect_wscom_candidates(client, hours):
-    feed = await collect_feed_candidates(client, WSCOM_FEED, hours, is_wscom_article, 80)
-    if feed:
-        return feed
-    return await collect_html_candidates(client, WSCOM_LATEST, is_wscom_article, 60)
-
 
 async def collect_polemica_candidates(client, hours):
     feed = await collect_feed_candidates(client, POLEMICA_FEED, hours, is_polemica_article, 80)
@@ -215,15 +208,38 @@ async def collect_polemica_candidates(client, hours):
     return await collect_html_candidates(client, POLEMICA_LATEST, is_polemica_article, 60)
 
 
-async def collect_g1_paraiba_candidates(client, hours):
-    return await collect_feed_candidates(client, G1_PARAIBA_FEED, hours, is_g1_paraiba_article, 80)
-
 
 async def collect_patos_online_candidates(client):
-    return await collect_html_candidates(client, PATOS_ONLINE_LATEST, is_patos_online_article, 70)
+    return await collect_html_candidates(client, PATOS_ONLINE_LATEST, is_patos_online_article, 55)
 
 
-async def enrich_article(client, candidate, hours, semaphore):
+async def collect_diario_sertao_candidates(client):
+    return await collect_html_candidates(client, DIARIO_SERTAO_LATEST, is_diario_sertao_article, 55)
+
+
+EDITORIA_FILTERS = {
+    "todas": None,
+    "seguranca": {"Segurança", "Trânsito"},
+    "servico": {"Serviço", "Saúde", "Educação", "Economia"},
+    "esportes": {"Esportes"},
+    "politica": {"Política", "Justiça"},
+    "geral": {"Geral", "Cotidiano", "Paraíba", "Brasil", "Mundo", "Cultura", "Entretenimento"},
+}
+
+
+def matches_editoria_filter(editoria, selected):
+    allowed = EDITORIA_FILTERS.get(selected)
+    return allowed is None or editoria in allowed
+
+
+def candidate_may_match(candidate, selected):
+    if selected == "todas":
+        return True
+    preliminary = infer_editoria(candidate.get("url", ""), candidate.get("title", ""), candidate.get("summary", ""))
+    return matches_editoria_filter(preliminary, selected)
+
+
+async def enrich_article(client, candidate, hours, semaphore, editoria_filter="todas"):
     async with semaphore:
         response = await fetch(client, candidate["url"])
     title, summary, published_at = candidate.get("title", ""), candidate.get("summary", ""), candidate.get("published_at")
@@ -244,6 +260,8 @@ async def enrich_article(client, candidate, hours, semaphore):
     title, summary = clean_text(title, 190), clean_text(summary, 320)
     if not title or is_excluded_content(candidate["url"], title, summary): return None
     editoria = infer_editoria(candidate["url"], title, summary)
+    if not matches_editoria_filter(editoria, editoria_filter):
+        return None
     score = calculate_relevance(title, summary, editoria, published_at)
     source = infer_source(candidate["url"])
     return {
@@ -265,29 +283,29 @@ def public_item(item):
     }
 
 
-async def collect_news(hours=24):
+async def collect_news(hours=24, editoria="todas"):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/rss+xml,application/xml",
         "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
     }
     async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=25) as client:
-        clickpb, jornal, maispb, wscom, polemica, g1_paraiba, patos_online = await asyncio.gather(
+        clickpb, jornal, maispb, polemica, patos_online, diario_sertao = await asyncio.gather(
             collect_clickpb_candidates(client),
             collect_jornal_candidates(client, hours),
             collect_maispb_candidates(client),
-            collect_wscom_candidates(client, hours),
             collect_polemica_candidates(client, hours),
-            collect_g1_paraiba_candidates(client, hours),
             collect_patos_online_candidates(client),
+            collect_diario_sertao_candidates(client),
         )
         candidates, seen = [], set()
-        for candidate in clickpb + jornal + maispb + wscom + polemica + g1_paraiba + patos_online:
+        for candidate in clickpb + jornal + maispb + polemica + patos_online + diario_sertao:
             if candidate["url"] not in seen:
                 seen.add(candidate["url"])
-                candidates.append(candidate)
-        semaphore = asyncio.Semaphore(12)
-        enriched = await asyncio.gather(*(enrich_article(client, c, hours, semaphore) for c in candidates))
+                if candidate_may_match(candidate, editoria):
+                    candidates.append(candidate)
+        semaphore = asyncio.Semaphore(10)
+        enriched = await asyncio.gather(*(enrich_article(client, c, hours, semaphore, editoria) for c in candidates))
     events = merge_duplicate_events([item for item in enriched if item])
     events.sort(key=lambda x: (
         editorial_bucket(x),
