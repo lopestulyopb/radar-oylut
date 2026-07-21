@@ -8,29 +8,23 @@
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <div class="brand">OYLUT</div>
-      <h1>Radar</h1>
-    </div>
-    <form method="post" action="/sair">
-      <button class="secondary" type="submit">Sair</button>
-    </form>
+    <div><div class="brand">OYLUT</div><h1>Radar</h1></div>
+    <form method="post" action="/sair"><button class="secondary" type="submit">Sair</button></form>
   </header>
 
   <main class="radar-shell">
     <p class="user">Acesso: {{ email }}</p>
-
     <section class="control-panel">
       <h2>Período das notícias</h2>
       <div class="periods" role="radiogroup" aria-label="Escolha o período">
         {% for hora in [1, 2, 6, 12, 24] %}
-          <label>
-            <input type="radio" name="horas" value="{{ hora }}" {% if hora == 24 %}checked{% endif %}>
-            <span>{{ hora }}h</span>
-          </label>
+          <label><input type="radio" name="horas" value="{{ hora }}" {% if hora == 24 %}checked{% endif %}><span>{{ hora }}h</span></label>
         {% endfor %}
       </div>
-      <button id="iniciar" type="button">Iniciar</button>
+      <div class="actions">
+        <button id="iniciar" type="button">Iniciar</button>
+        <button id="copiar" class="secondary" type="button" hidden>Copiar resultados</button>
+      </div>
     </section>
 
     <section aria-live="polite">
@@ -41,8 +35,10 @@
 
   <script>
     const button = document.getElementById('iniciar');
+    const copyButton = document.getElementById('copiar');
     const status = document.getElementById('status');
     const results = document.getElementById('resultados');
+    let currentNews = [];
 
     function createText(tag, className, text) {
       const element = document.createElement(tag);
@@ -51,23 +47,51 @@
       return element;
     }
 
+    function formatDate(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function copyText(news) {
+      return news.map((item, index) => {
+        const sourceLines = (item.fontes || []).map(source => `${source.nome}: ${source.link}`).join('\n');
+        const published = formatDate(item.publicado_em);
+        return `${index + 1}. ${item.titulo}\n\n${item.resumo}${published ? `\n\nPublicado: ${published}` : ''}\n\nLinks:\n${sourceLines}`;
+      }).join('\n\n------------------------------\n\n');
+    }
+
+    copyButton.addEventListener('click', async () => {
+      if (!currentNews.length) return;
+      try {
+        await navigator.clipboard.writeText(copyText(currentNews));
+        const original = copyButton.textContent;
+        copyButton.textContent = 'Resultados copiados';
+        setTimeout(() => { copyButton.textContent = original; }, 1800);
+      } catch (_) {
+        status.textContent = 'Não foi possível copiar automaticamente. Tente novamente pelo navegador.';
+      }
+    });
+
     button.addEventListener('click', async () => {
       const selected = document.querySelector('input[name="horas"]:checked');
       const horas = selected ? selected.value : '24';
       button.disabled = true;
-      status.textContent = 'Buscando, analisando e organizando notícias...';
+      copyButton.hidden = true;
+      currentNews = [];
+      status.textContent = 'Buscando, comparando e organizando notícias...';
       results.innerHTML = '';
 
       try {
         const response = await fetch(`/radar?horas=${encodeURIComponent(horas)}`);
-        if (response.status === 401) {
-          window.location.href = '/login';
-          return;
-        }
+        if (response.status === 401) { window.location.href = '/login'; return; }
         if (!response.ok) throw new Error('Falha ao executar o Radar.');
 
         const noticias = await response.json();
-        status.textContent = `${noticias.length} notícia(s) encontrada(s), sem duplicações.`;
+        currentNews = noticias;
+        status.textContent = `${noticias.length} fato(s) encontrado(s), organizados por relevância.`;
+        copyButton.hidden = noticias.length === 0;
 
         noticias.forEach((noticia, index) => {
           const article = document.createElement('article');
@@ -76,32 +100,24 @@
           const meta = document.createElement('div');
           meta.className = 'news-meta';
           meta.appendChild(createText('span', 'rank', `${index + 1}`));
-          meta.appendChild(createText('span', 'section-badge', noticia.editoria));
-          meta.appendChild(createText('span', 'source', noticia.fonte));
+          const published = formatDate(noticia.publicado_em);
+          if (published) meta.appendChild(createText('span', 'published', published));
           article.appendChild(meta);
 
-          const title = document.createElement('h2');
-          const link = document.createElement('a');
-          link.href = noticia.link;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          link.textContent = noticia.titulo;
-          title.appendChild(link);
-          article.appendChild(title);
-
+          article.appendChild(createText('h2', '', noticia.titulo));
           article.appendChild(createText('p', 'summary', noticia.resumo));
 
-          const footer = document.createElement('div');
-          footer.className = 'news-footer';
-          footer.appendChild(createText('span', 'weight', `Peso jornalístico: ${noticia.peso}`));
-          const openLink = document.createElement('a');
-          openLink.href = noticia.link;
-          openLink.target = '_blank';
-          openLink.rel = 'noopener noreferrer';
-          openLink.textContent = 'Abrir notícia';
-          footer.appendChild(openLink);
-          article.appendChild(footer);
-
+          const sources = document.createElement('div');
+          sources.className = 'sources-list';
+          (noticia.fontes || []).forEach(source => {
+            const link = document.createElement('a');
+            link.href = source.link;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = source.nome;
+            sources.appendChild(link);
+          });
+          article.appendChild(sources);
           results.appendChild(article);
         });
       } catch (error) {

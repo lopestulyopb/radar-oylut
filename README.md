@@ -1,15 +1,20 @@
-# Radar Oylut 3.1
+# Radar Oylut — Etapa 3 / Sprint 1
 
-A rota `/radar` retorna somente links:
+Versão 5.1.0.
 
-- as 20 notícias mais recentes do ClickPB;
-- as matérias publicadas nas últimas 24 horas no Jornal da Paraíba.
+## Fontes ativas
+- ClickPB
+- Jornal da Paraíba
+- Portal Correio
+- MaisPB
 
-## Rotas
+## Alterações
+- Portal Correio e MaisPB adicionados.
+- Limite anterior de 20 links do ClickPB ampliado.
+- Notícias repetidas passam a ser agrupadas por fato e exibem todos os links encontrados.
+- Peso, editoria e pontuação não aparecem para o usuário.
+- Ordenação interna voltada a programa popular; esportes permanecem no Radar, mas no fim.
+- Botão **Copiar resultados** com títulos, resumos e links.
 
-- `/`
-- `/saude`
-- `/radar`
-- `/radar?horas=48`
-
-O parâmetro `horas` altera apenas o período do Jornal da Paraíba.
+## Implantação
+Substitua os arquivos do repositório pelos desta versão e faça commit. O Render deve iniciar um novo deploy automaticamente.
