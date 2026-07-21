@@ -19,8 +19,6 @@ CLICKPB_LATEST = "https://www.clickpb.com.br/ultimas-noticias"
 MAISPB_LATEST = "https://www.maispb.com.br/ultimas-noticias"
 POLEMICA_FEED = "https://www.polemicaparaiba.com.br/feed/"
 POLEMICA_LATEST = "https://www.polemicaparaiba.com.br/ultimas-noticias/"
-PATOS_ONLINE_LATEST = "https://patosonline.com/ultimas-noticias/pagina/1"
-DIARIO_SERTAO_LATEST = "https://www.diariodosertao.com.br/"
 
 
 def parse_datetime(value):
@@ -94,8 +92,6 @@ def infer_source(url):
     if "jornaldaparaiba" in host: return "Jornal da Paraíba"
     if "maispb" in host: return "MaisPB"
     if "polemicaparaiba" in host: return "Polêmica Paraíba"
-    if "patosonline" in host: return "Patos Online"
-    if "diariodosertao" in host: return "Diário do Sertão"
     return host.replace("www.", "")
 
 
@@ -123,26 +119,6 @@ def is_polemica_article(url, anchor_text=""):
     return host == "polemicaparaiba.com.br" and len(parts) >= 1 and not any(p in blocked for p in parts) and len(clean_text(anchor_text)) >= 24
 
 
-
-def is_patos_online_article(url, anchor_text=""):
-    parsed = urlparse(url)
-    host = parsed.netloc.lower().replace("www.", "")
-    parts = [p for p in parsed.path.lower().strip("/").split("/") if p]
-    blocked = {"ultimas-noticias", "editorias", "municipios", "paginas", "classificados", "contato", "politica-de-privacidade", "quem-somos", "pagina"}
-    return host == "patosonline.com" and bool(parts) and not any(p in blocked for p in parts) and len(clean_text(anchor_text)) >= 24
-
-
-def is_diario_sertao_article(url, anchor_text=""):
-    parsed = urlparse(url)
-    host = parsed.netloc.lower().replace("www.", "")
-    parts = [p for p in parsed.path.lower().strip("/").split("/") if p]
-    blocked = {"colunistas", "eventos", "sobre", "contato", "pesquisa", "radio", "tv", "play", "author", "tag", "feed"}
-    return (
-        host == "diariodosertao.com.br"
-        and bool(parts)
-        and not any(part in blocked for part in parts)
-        and len(clean_text(anchor_text)) >= 24
-    )
 
 
 async def collect_html_candidates(client, page_url, validator, limit=60):
@@ -208,13 +184,6 @@ async def collect_polemica_candidates(client, hours):
     return await collect_html_candidates(client, POLEMICA_LATEST, is_polemica_article, 60)
 
 
-
-async def collect_patos_online_candidates(client):
-    return await collect_html_candidates(client, PATOS_ONLINE_LATEST, is_patos_online_article, 55)
-
-
-async def collect_diario_sertao_candidates(client):
-    return await collect_html_candidates(client, DIARIO_SERTAO_LATEST, is_diario_sertao_article, 55)
 
 
 EDITORIA_FILTERS = {
@@ -290,16 +259,14 @@ async def collect_news(hours=24, editoria="todas"):
         "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
     }
     async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=25) as client:
-        clickpb, jornal, maispb, polemica, patos_online, diario_sertao = await asyncio.gather(
+        clickpb, jornal, maispb, polemica = await asyncio.gather(
             collect_clickpb_candidates(client),
             collect_jornal_candidates(client, hours),
             collect_maispb_candidates(client),
             collect_polemica_candidates(client, hours),
-            collect_patos_online_candidates(client),
-            collect_diario_sertao_candidates(client),
         )
         candidates, seen = [], set()
-        for candidate in clickpb + jornal + maispb + polemica + patos_online + diario_sertao:
+        for candidate in clickpb + jornal + maispb + polemica:
             if candidate["url"] not in seen:
                 seen.add(candidate["url"])
                 if candidate_may_match(candidate, editoria):

@@ -1,4 +1,4 @@
-# Radar Oylut — Etapa 3, Sprint 4
+# Radar Oylut — Etapa 3, Sprint 4.1
 
 Versão 5.4.0.
 
@@ -8,8 +8,6 @@ Versão 5.4.0.
 - Jornal da Paraíba
 - MaisPB
 - Polêmica Paraíba
-- Patos Online
-- Diário do Sertão
 
 Foram retirados WSCOM e G1 Paraíba.
 
@@ -35,3 +33,7 @@ Foram retirados WSCOM e G1 Paraíba.
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
+
+## Sprint 4.1
+
+Fontes ativas: ClickPB, Jornal da Paraíba, MaisPB e Polêmica Paraíba. Patos Online e Diário do Sertão foram removidos para reduzir ruído, volume e tempo de processamento.
