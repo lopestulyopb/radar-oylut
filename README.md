@@ -1,24 +1,15 @@
-# Radar Oylut — Etapa 3 / Sprint 2.1
+# Radar Oylut — Etapa 3, Sprint 3
 
-Versão 5.2.1.
+Versão 5.3.0.
 
-## Fontes ativas
+## Alterações
 
-- ClickPB
-- Jornal da Paraíba
-- MaisPB
-- WSCOM
-- Polêmica Paraíba
-
-O Portal Correio permanece removido.
-
-## Correções desta versão
-
-- Deduplicação ampliada com sinônimos e regras para eventos específicos.
-- Comparação com todos os integrantes de cada grupo, evitando que uma fonte fique isolada após a primeira fusão.
-- Agrupamento reforçado para: caso Rubinho, vacinação gripe/influenza, alertas do Inmet, idoso arrastado por cavalo, prisão por maus-tratos e limites de gastos eleitorais.
-- Seleção do melhor título e resumo entre as fontes agrupadas.
-- Limpeza do sufixo “WSCOM - Quem sabe, faz conteúdo” e de assinaturas editoriais.
-- Exclusão de opinião, blogs, colunas, transmissões ao vivo e releases institucionais sem serviço público.
-- Sequência fixa: crimes/policial e acidentes; serviço/utilidade pública; esporte; política/Justiça; geral/entretenimento.
-- Classificação contextual para evitar que notícias administrativas da Polícia Federal sejam tratadas como policiais.
+- Código editorial dividido em módulos de classificação, deduplicação, filtros e limpeza de texto.
+- `collector.py` reduzido e mantido como coordenador da coleta.
+- Sequência rígida: policial; serviço; esporte; política/Justiça; geral/entretenimento.
+- Deduplicação ampliada para atualizações do mesmo caso, vacinação, clima, crise partidária e projetos públicos.
+- Título e resumo passam a ser escolhidos em conjunto, evitando misturar título de uma atualização com resumo de outra.
+- Filtros adicionais para colunas, opinião, releases institucionais e páginas ao vivo.
+- Novas fontes: G1 Paraíba e Patos Online.
+- Links exibidos como botões com efeito gráfico.
+- Botão individual “Copiar notícia” preserva no texto copiado o nome do portal e a URL completa.

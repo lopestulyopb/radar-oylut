@@ -1,9 +1,6 @@
 import asyncio
 import json
-import re
-import unicodedata
 from datetime import datetime, timedelta, timezone
-from difflib import SequenceMatcher
 from email.utils import parsedate_to_datetime
 from urllib.parse import urldefrag, urljoin, urlparse
 
@@ -12,6 +9,11 @@ import httpx
 from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
 
+from app.editorial.categories import calculate_relevance, editorial_bucket, infer_editoria
+from app.editorial.deduplication import merge_duplicate_events
+from app.editorial.filters import is_excluded_content
+from app.editorial.text import clean_text, normalize_text
+
 JORNAL_FEED = "https://jornaldaparaiba.com.br/feed"
 CLICKPB_LATEST = "https://www.clickpb.com.br/ultimas-noticias"
 MAISPB_LATEST = "https://www.maispb.com.br/ultimas-noticias"
@@ -19,60 +21,8 @@ WSCOM_FEED = "https://wscom.com.br/feed/"
 WSCOM_LATEST = "https://wscom.com.br/category/noticias/"
 POLEMICA_FEED = "https://www.polemicaparaiba.com.br/feed/"
 POLEMICA_LATEST = "https://www.polemicaparaiba.com.br/ultimas-noticias/"
-
-EDITORIA_LABELS = {
-    "policial": "Segurança", "seguranca": "Segurança", "cotidiano": "Cotidiano",
-    "paraiba": "Paraíba", "politica": "Política", "economia": "Economia",
-    "emprego": "Serviço", "concursos": "Serviço", "educacao": "Educação",
-    "saude": "Saúde", "esporte": "Esportes", "esportes": "Esportes",
-    "cultura": "Cultura", "entretenimento": "Entretenimento", "brasil": "Brasil",
-    "mundo": "Mundo", "justica": "Justiça", "transito": "Trânsito",
-    "noticias": "Geral", "cidades": "Paraíba",
-}
-
-EDITORIA_BASE = {
-    "Segurança": 56, "Trânsito": 52, "Cotidiano": 45, "Paraíba": 43,
-    "Saúde": 48, "Serviço": 47, "Economia": 39, "Justiça": 38,
-    "Educação": 42, "Política": 35, "Brasil": 25, "Mundo": 18,
-    "Cultura": 14, "Entretenimento": 10, "Geral": 28, "Esportes": 35,
-}
-
-IMPACT_KEYWORDS = {
-    "morre": 26, "morte": 26, "homicidio": 25, "assassin": 25, "feminicidio": 27,
-    "estupro": 27, "tiroteio": 24, "sequestro": 23, "desaparecid": 21,
-    "acidente": 19, "atropel": 20, "capot": 18, "colisao": 17,
-    "incendio": 19, "explosao": 23, "desabamento": 24, "alagamento": 17,
-    "enchente": 20, "chuvas intensas": 16, "alerta": 11, "interdicao": 15,
-    "sem agua": 18, "falta de agua": 18, "sem energia": 17, "apagao": 18,
-    "suspende": 11, "cancelado": 10, "prazo": 8, "inscricao": 8,
-    "vagas": 11, "concurso": 11, "emprego": 10, "beneficio": 9,
-    "hospital": 10, "doenca": 9, "vacina": 10, "surto": 18,
-    "golpe": 14, "fraude": 13, "preso": 13, "prisao": 13, "operacao": 9,
-    "crianca": 7, "idoso": 6, "mulher": 4,
-}
-
-STOPWORDS = {
-    "a", "o", "as", "os", "de", "da", "do", "das", "dos", "e", "em", "no", "na",
-    "nos", "nas", "um", "uma", "para", "por", "com", "que", "se", "ao", "aos", "apos",
-    "sobre", "contra", "e", "sao", "ser", "tem", "mais", "pb", "paraiba", "joao",
-    "pessoa", "diz", "segundo", "nesta", "neste", "durante", "novo", "nova", "confira",
-    "veja", "saiba", "entenda", "caso", "portal", "jornal", "maispb", "clickpb", "wscom",
-    "polemica", "homem", "mulher", "suspeito", "suspeita", "investigado", "investigada",
-}
-
-ACTION_GROUPS = {
-    "morte": {"morre", "morreu", "morto", "morta", "morte", "mata", "matar", "assassinato", "homicidio"},
-    "prisao": {"preso", "presa", "prende", "prisao", "captura", "detido", "detida"},
-    "acidente": {"acidente", "colisao", "capotamento", "atropelamento", "atropela", "bate", "trem"},
-    "denuncia": {"denuncia", "denunciado", "denunciada", "reu", "reus", "processo", "acusado", "acusada"},
-    "absolvicao": {"absolve", "absolvido", "absolvida", "arquiva", "arquivado"},
-    "alerta": {"alerta", "chuva", "temporal", "previsao", "inmet"},
-    "vacina": {"vacina", "vacinacao", "influenza", "gripe", "imunizacao"},
-    "golpe": {"golpe", "fraude", "falso", "whatsapp"},
-    "operacao": {"operacao", "mandado", "apreende", "apreensao", "busca"},
-    "servico": {"vagas", "inscricao", "prazo", "concurso", "curso", "beneficio", "fgts", "inss"},
-    "politica": {"aprova", "ldo", "eleicao", "partido", "senado", "deputado", "prefeito", "governador"},
-}
+G1_PARAIBA_FEED = "https://g1.globo.com/rss/g1/pb/paraiba/"
+PATOS_ONLINE_LATEST = "https://patosonline.com/ultimas-noticias/pagina/1"
 
 
 def parse_datetime(value):
@@ -102,25 +52,6 @@ def normalize_url(base_url, href):
     if parsed.scheme not in {"http", "https"}:
         return None
     return parsed._replace(query="", fragment="").geturl().rstrip("/")
-
-
-def normalize_text(value):
-    value = unicodedata.normalize("NFKD", value or "")
-    value = "".join(char for char in value if not unicodedata.combining(char))
-    value = re.sub(r"[^a-zA-Z0-9\s]", " ", value).lower()
-    return re.sub(r"\s+", " ", value).strip()
-
-
-def clean_text(value, limit=None):
-    text = BeautifulSoup(value or "", "html.parser").get_text(" ", strip=True)
-    text = re.sub(r"\s+", " ", text).strip()
-    text = re.sub(r"^(MaisPB|ClickPB|WSCOM|Polêmica Paraíba|Jornal da Paraíba)\s*[•|\-:]\s*", "", text, flags=re.I)
-    text = re.sub(r"\s*[|\-]\s*(MaisPB|ClickPB|WSCOM|Polêmica Paraíba|Jornal da Paraíba)(?:\s*[|\-]\s*Quem sabe, faz conteúdo)?$", "", text, flags=re.I)
-    text = re.sub(r"\s*-\s*WSCOM\s*-\s*Quem sabe, faz conteúdo\s*$", "", text, flags=re.I)
-    text = re.sub(r"^(?:[A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç.-]+(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç.-]+){0,3})\s*[–—-]\s*(?:MaisPB|ClickPB|WSCOM|Polêmica Paraíba|Jornal da Paraíba)\s+", "", text)
-    if limit and len(text) > limit:
-        text = text[: limit - 1].rstrip() + "…"
-    return text
 
 
 async def fetch(client, url):
@@ -166,111 +97,9 @@ def infer_source(url):
     if "maispb" in host: return "MaisPB"
     if "wscom" in host: return "WSCOM"
     if "polemicaparaiba" in host: return "Polêmica Paraíba"
+    if "g1.globo.com" in host: return "G1 Paraíba"
+    if "patosonline" in host: return "Patos Online"
     return host.replace("www.", "")
-
-
-def is_excluded_content(url, title="", summary=""):
-    path = urlparse(url).path.lower()
-    text = normalize_text(f"{title} {summary}")
-    blocked_path = (
-        "/espaco-opiniao/", "/opiniao-e-blogs/", "/opiniao/", "/blogs/",
-        "/colunas/", "/colunistas/", "/ao-vivo", "clickfm-ao-vivo",
-    )
-    if any(token in path for token in blocked_path):
-        return True
-    blocked_text = (
-        "por janguiê diniz", "por cid gadelha", "ao vivo",
-        "quem sabe faz conteudo fique informado",
-    )
-    if any(token in text for token in blocked_text):
-        return True
-    # Releases empresariais/institucionais sem serviço concreto à população.
-    institutional = ("recebe comitiva", "reforça compromisso", "referencia em inovacao e tecnologia")
-    if any(token in text for token in institutional) and not any(k in text for k in ("vaga", "curso", "inscricao", "servico", "gratuito")):
-        return True
-    return False
-
-
-def infer_editoria(url, title="", summary=""):
-    path = urlparse(url).path.lower()
-    text = normalize_text(f"{title} {summary}")
-
-    # Exceções contextuais: instituições policiais podem aparecer em fatos políticos/administrativos.
-    if any(k in text for k in ("eduardo bolsonaro", "abandono de cargo", "demissao")) and "policia federal" in text:
-        return "Política"
-
-    # Segurança/crimes e acidentes.
-    security_terms = (
-        "homicidio", "assassin", "feminicidio", "estupro", "tiroteio", "trafico",
-        "preso", "presa", "prisao", "crime", "criminos", "golpe", "fraude", "falso whatsapp", "ameaca",
-        "maus tratos", "arma", "drogas", "mandado", "foragid", "roubo", "furto", "morre", "morte",
-    )
-    traffic_terms = ("acidente", "atropel", "colisao", "capot", "trem", "rodovia", "transito")
-    if any(k in text for k in traffic_terms):
-        return "Trânsito"
-    if any(k in text for k in security_terms):
-        return "Segurança"
-
-    # Serviço/utilidade pública, incluindo saúde, educação, direitos e oportunidades.
-    service_terms = (
-        "vaga", "emprego", "concurso", "inscricao", "curso", "prazo", "calendario",
-        "vacina", "vacinacao", "influenza", "gripe", "alerta", "chuva", "previsao do tempo",
-        "fgts", "inss", "bolsa familia", "abastecimento", "direitos", "voo cancelado",
-        "bagagem extraviada", "saude em acao", "inclusao escolar", "gratuita", "gratuito",
-        "cotas raciais", "reserva de vagas", "transporte escolar",
-    )
-    if any(k in text for k in service_terms):
-        return "Serviço"
-
-    # Esporte.
-    sport_terms = ("futebol", "campeonato", "botafogo pb", "treze", "sousa", "serie c", "serie d", "copa do mundo", "volei", "olimpica", "corrida")
-    if "/esporte" in path or any(k in text for k in sport_terms):
-        return "Esportes"
-
-    # Política e Justiça ficam depois do esporte.
-    justice_terms = ("justica", "tribunal", "ministerio publico", "mppb", "juiz", "juiza", "reu", "reus", "processo", "denuncia", "absolve", "acao judicial")
-    politics_terms = ("prefeito", "governador", "deputado", "senador", "eleicao", "eleicoes", "partido", "assembleia", "alpb", "ldo", "tse", "tre pb", "guia eleitoral")
-    if any(k in text for k in justice_terms):
-        return "Justiça"
-    if any(k in text for k in politics_terms):
-        return "Política"
-
-    # URL como fallback, sem se sobrepor ao contexto acima.
-    parts = [part for part in path.split("/") if part]
-    for part in parts:
-        if part in EDITORIA_LABELS:
-            return EDITORIA_LABELS[part]
-    return "Geral"
-
-
-def calculate_relevance(title, summary, editoria, published_at):
-    text = normalize_text(f"{title} {summary}")
-    score = EDITORIA_BASE.get(editoria, 28)
-    for keyword, points in IMPACT_KEYWORDS.items():
-        if normalize_text(keyword) in text:
-            score += points
-    if re.search(r"\b\d+[\.,]?\d*\s*(mil|milhoes|pessoas|cidades|municipios|vagas)\b", text):
-        score += 8
-    if any(term in text for term in ("joao pessoa", "campina grande", "paraiba", "bayeux", "cabedelo", "santa rita")):
-        score += 4
-    if published_at:
-        age_hours = max(0, (datetime.now(timezone.utc) - published_at).total_seconds() / 3600)
-        if age_hours <= 1: score += 10
-        elif age_hours <= 2: score += 8
-        elif age_hours <= 6: score += 5
-        elif age_hours <= 12: score += 2
-    return score
-
-
-def editorial_bucket(item):
-    """Ordem fixa: policial, serviço, esporte, política/Justiça, geral/entretenimento."""
-    editoria = item.get("editoria_interna", "Geral")
-    return {
-        "Segurança": 0, "Trânsito": 0,
-        "Serviço": 1, "Saúde": 1, "Educação": 1, "Economia": 1,
-        "Esportes": 2,
-        "Política": 3, "Justiça": 3,
-    }.get(editoria, 4)
 
 
 def is_clickpb_article(url):
@@ -302,6 +131,19 @@ def is_polemica_article(url, anchor_text=""):
     parts = [p for p in parsed.path.lower().strip("/").split("/") if p]
     blocked = {"ultimas-noticias", "category", "tag", "author", "opiniao", "colunas", "ao-vivo", "feed", "page"}
     return host == "polemicaparaiba.com.br" and len(parts) >= 1 and not any(p in blocked for p in parts) and len(clean_text(anchor_text)) >= 24
+
+
+def is_g1_paraiba_article(url, anchor_text=""):
+    parsed = urlparse(url)
+    return parsed.netloc.lower() == "g1.globo.com" and parsed.path.lower().startswith("/pb/paraiba/") and parsed.path.lower().endswith(".ghtml")
+
+
+def is_patos_online_article(url, anchor_text=""):
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().replace("www.", "")
+    parts = [p for p in parsed.path.lower().strip("/").split("/") if p]
+    blocked = {"ultimas-noticias", "editorias", "municipios", "paginas", "classificados", "contato", "politica-de-privacidade", "quem-somos", "pagina"}
+    return host == "patosonline.com" and bool(parts) and not any(p in blocked for p in parts) and len(clean_text(anchor_text)) >= 24
 
 
 async def collect_html_candidates(client, page_url, validator, limit=60):
@@ -373,6 +215,14 @@ async def collect_polemica_candidates(client, hours):
     return await collect_html_candidates(client, POLEMICA_LATEST, is_polemica_article, 60)
 
 
+async def collect_g1_paraiba_candidates(client, hours):
+    return await collect_feed_candidates(client, G1_PARAIBA_FEED, hours, is_g1_paraiba_article, 80)
+
+
+async def collect_patos_online_candidates(client):
+    return await collect_html_candidates(client, PATOS_ONLINE_LATEST, is_patos_online_article, 70)
+
+
 async def enrich_article(client, candidate, hours, semaphore):
     async with semaphore:
         response = await fetch(client, candidate["url"])
@@ -406,174 +256,6 @@ async def enrich_article(client, candidate, hours, semaphore):
     }
 
 
-def stem_token(word):
-    for suffix in ("amento", "imento", "acoes", "acao", "mente", "ados", "adas", "ido", "ida", "ou", "aram", "eram", "es", "s"):
-        if len(word) > len(suffix) + 4 and word.endswith(suffix):
-            return word[:-len(suffix)]
-    return word
-
-
-def canonicalize_event_text(text):
-    text = normalize_text(text)
-    replacements = {
-        r"\binfluenza\b": "gripe",
-        r"\bimunizacao\b": "vacinacao",
-        r"\btorna(?:m)? reus?\b|\bvira(?:m)? reus?\b|\btransforma(?:m)? .*? em reus?\b|\baceita denuncia\b": "justica aceita denuncia reus",
-        r"\barrastado por cavalo\b|\barrastado e morto por cavalo\b": "morte arrastado cavalo",
-        r"\bforagida ha 10 anos\b|\bcondenada por maus tratos\b": "condenada maus tratos presa",
-        r"\blimite de gastos(?: de campanha)?\b|\bpoderao gastar\b": "limite gastos campanha",
-        r"\bchuvas intensas\b|\bprevisao do tempo\b": "alerta chuva inmet",
-        r"\bex esposa\b|\bnamorada\b": "companheira",
-    }
-    for pattern, replacement in replacements.items():
-        text = re.sub(pattern, replacement, text)
-    return re.sub(r"\s+", " ", text).strip()
-
-
-def meaningful_words(text):
-    return {stem_token(w) for w in canonicalize_event_text(text).split() if len(w) >= 4 and w not in STOPWORDS}
-
-
-def extract_numbers(text):
-    return set(re.findall(r"\b\d+(?:[\.,]\d+)?\b", normalize_text(text)))
-
-
-def action_labels(text):
-    words = set(canonicalize_event_text(text).split())
-    labels = set()
-    for label, variants in ACTION_GROUPS.items():
-        if words & variants:
-            labels.add(label)
-    if {"reus", "denuncia"} & words:
-        labels.add("denuncia")
-    return labels
-
-
-def event_signature(item):
-    title = canonicalize_event_text(item.get("titulo", ""))
-    summary = canonicalize_event_text(item.get("resumo", ""))
-    title_words = meaningful_words(title)
-    all_words = meaningful_words(f"{title} {summary}")
-    generic = {"policia", "civil", "militar", "justica", "ministerio", "publico", "cidade", "estado", "programa", "paraiba"}
-    entities = {w for w in title_words if w not in generic and len(w) >= 5}
-    return {
-        "title": title, "summary": summary, "title_words": title_words, "words": all_words,
-        "entities": entities, "actions": action_labels(f"{title} {summary}"),
-        "numbers": extract_numbers(f"{title} {summary}"),
-        "editoria": item.get("editoria_interna", "Geral"), "bucket": editorial_bucket(item),
-    }
-
-
-def token_overlap(a, b):
-    return len(a & b) / max(1, min(len(a), len(b)))
-
-
-def jaccard(a, b):
-    return len(a & b) / max(1, len(a | b))
-
-
-def same_sports_event(sa, sb):
-    similarity = SequenceMatcher(None, sa["title"], sb["title"]).ratio()
-    overlap = token_overlap(sa["title_words"], sb["title_words"])
-    common = sa["title_words"] & sb["title_words"]
-    return similarity >= 0.90 or (overlap >= 0.86 and len(common) >= 5)
-
-
-def distinctive_event_rules(sa, sb):
-    joined = f"{sa['title']} {sa['summary']} || {sb['title']} {sb['summary']}"
-    both = lambda terms: all(any(term in side for term in terms) for side in (f"{sa['title']} {sa['summary']}", f"{sb['title']} {sb['summary']}"))
-    if both(("rubinho",)) and both(("reu", "denuncia")):
-        return True
-    if both(("cavalo",)) and both(("arrast", "morte", "morre")) and both(("sao jose de piranhas",)):
-        return True
-    if both(("maus tratos",)) and both(("filha",)) and both(("presa", "prisao", "foragida")):
-        return True
-    if both(("gripe", "influenza")) and both(("vacina", "vacinacao")):
-        return True
-    if both(("inmet",)) and both(("chuva", "alerta", "previsao")):
-        return True
-    if both(("limite gastos campanha",)) and both(("eleicoes 2026", "eleicao 2026")):
-        return True
-    return False
-
-
-def same_event(a, b):
-    sa, sb = event_signature(a), event_signature(b)
-    if not sa["title_words"] or not sb["title_words"]:
-        return False
-    if sa["editoria"] == "Esportes" or sb["editoria"] == "Esportes":
-        return sa["editoria"] == sb["editoria"] and same_sports_event(sa, sb)
-    if distinctive_event_rules(sa, sb):
-        return True
-
-    title_sim = SequenceMatcher(None, sa["title"], sb["title"]).ratio()
-    title_overlap = token_overlap(sa["title_words"], sb["title_words"])
-    all_jaccard = jaccard(sa["words"], sb["words"])
-    common_entities = sa["entities"] & sb["entities"]
-    common_actions = sa["actions"] & sb["actions"]
-    common_numbers = sa["numbers"] & sb["numbers"]
-
-    if abs(sa["bucket"] - sb["bucket"]) >= 3 and title_sim < 0.86:
-        return False
-    if title_sim >= 0.70:
-        return True
-    if title_overlap >= 0.56 and len(sa["title_words"] & sb["title_words"]) >= 3:
-        return True
-    if len(common_entities) >= 2 and common_actions and all_jaccard >= 0.15:
-        return True
-    if len(common_entities) >= 2 and all_jaccard >= 0.25:
-        return True
-    if len(common_entities) >= 1 and common_actions and common_numbers and all_jaccard >= 0.16:
-        return True
-    if len(common_entities) >= 3 and all_jaccard >= 0.18:
-        return True
-    return False
-
-
-def summary_quality(text):
-    if not text or text == "Resumo não disponível na fonte.": return -1000
-    penalty = 0
-    low = normalize_text(text)
-    for bad in ("descubra", "clique", "fique informado", "ultimas postagens", "boas praticas se compartilham"):
-        if bad in low: penalty += 80
-    return min(len(text), 320) - penalty
-
-
-def title_quality(text):
-    low = normalize_text(text)
-    penalty = 0
-    for bad in ("quem sabe faz conteudo", "confira", "veja", "saiba"):
-        if bad in low: penalty += 25
-    return min(len(text), 180) - penalty
-
-
-def merge_duplicate_events(items):
-    groups = []
-    ordered = sorted(items, key=lambda x: (x.get("publicado_em") or "", x["relevancia_interna"]), reverse=True)
-    for item in ordered:
-        match = next((group for group in groups if any(same_event(item, member) for member in group["_members"])), None)
-        if match is None:
-            item["_members"] = [dict(item)]
-            groups.append(item)
-            continue
-        match["_members"].append(dict(item))
-        existing_links = {source["link"] for source in match["fontes"]}
-        for source in item["fontes"]:
-            if source["link"] not in existing_links:
-                match["fontes"].append(source)
-        if title_quality(item["titulo"]) > title_quality(match["titulo"]):
-            match["titulo"] = item["titulo"]
-        if summary_quality(item["resumo"]) > summary_quality(match["resumo"]):
-            match["resumo"] = item["resumo"]
-        match["relevancia_interna"] = max(match["relevancia_interna"], item["relevancia_interna"]) + min(8, 2 * (len(match["fontes"]) - 1))
-        dates = [d for d in (match.get("publicado_em"), item.get("publicado_em")) if d]
-        match["publicado_em"] = max(dates) if dates else None
-        match["editoria_interna"] = infer_editoria(match["fontes"][0]["link"], match["titulo"], match["resumo"])
-    for group in groups:
-        group.pop("_members", None)
-    return groups
-
-
 def public_item(item):
     return {
         "titulo": item["titulo"],
@@ -590,15 +272,17 @@ async def collect_news(hours=24):
         "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
     }
     async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=25) as client:
-        clickpb, jornal, maispb, wscom, polemica = await asyncio.gather(
+        clickpb, jornal, maispb, wscom, polemica, g1_paraiba, patos_online = await asyncio.gather(
             collect_clickpb_candidates(client),
             collect_jornal_candidates(client, hours),
             collect_maispb_candidates(client),
             collect_wscom_candidates(client, hours),
             collect_polemica_candidates(client, hours),
+            collect_g1_paraiba_candidates(client, hours),
+            collect_patos_online_candidates(client),
         )
         candidates, seen = [], set()
-        for candidate in clickpb + jornal + maispb + wscom + polemica:
+        for candidate in clickpb + jornal + maispb + wscom + polemica + g1_paraiba + patos_online:
             if candidate["url"] not in seen:
                 seen.add(candidate["url"])
                 candidates.append(candidate)
