@@ -35,7 +35,7 @@
 
     <section aria-live="polite">
       <div id="status" class="status"></div>
-      <ol id="resultados" class="results"></ol>
+      <div id="resultados" class="results"></div>
     </section>
   </main>
 
@@ -44,11 +44,18 @@
     const status = document.getElementById('status');
     const results = document.getElementById('resultados');
 
+    function createText(tag, className, text) {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      element.textContent = text;
+      return element;
+    }
+
     button.addEventListener('click', async () => {
       const selected = document.querySelector('input[name="horas"]:checked');
       const horas = selected ? selected.value : '24';
       button.disabled = true;
-      status.textContent = 'Buscando notícias...';
+      status.textContent = 'Buscando, analisando e organizando notícias...';
       results.innerHTML = '';
 
       try {
@@ -59,19 +66,44 @@
         }
         if (!response.ok) throw new Error('Falha ao executar o Radar.');
 
-        const links = await response.json();
-        status.textContent = `${links.length} notícia(s) encontrada(s).`;
+        const noticias = await response.json();
+        status.textContent = `${noticias.length} notícia(s) encontrada(s), sem duplicações.`;
 
-        for (const link of links) {
-          const item = document.createElement('li');
-          const anchor = document.createElement('a');
-          anchor.href = link;
-          anchor.target = '_blank';
-          anchor.rel = 'noopener noreferrer';
-          anchor.textContent = link;
-          item.appendChild(anchor);
-          results.appendChild(item);
-        }
+        noticias.forEach((noticia, index) => {
+          const article = document.createElement('article');
+          article.className = 'news-card';
+
+          const meta = document.createElement('div');
+          meta.className = 'news-meta';
+          meta.appendChild(createText('span', 'rank', `${index + 1}`));
+          meta.appendChild(createText('span', 'section-badge', noticia.editoria));
+          meta.appendChild(createText('span', 'source', noticia.fonte));
+          article.appendChild(meta);
+
+          const title = document.createElement('h2');
+          const link = document.createElement('a');
+          link.href = noticia.link;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = noticia.titulo;
+          title.appendChild(link);
+          article.appendChild(title);
+
+          article.appendChild(createText('p', 'summary', noticia.resumo));
+
+          const footer = document.createElement('div');
+          footer.className = 'news-footer';
+          footer.appendChild(createText('span', 'weight', `Peso jornalístico: ${noticia.peso}`));
+          const openLink = document.createElement('a');
+          openLink.href = noticia.link;
+          openLink.target = '_blank';
+          openLink.rel = 'noopener noreferrer';
+          openLink.textContent = 'Abrir notícia';
+          footer.appendChild(openLink);
+          article.appendChild(footer);
+
+          results.appendChild(article);
+        });
       } catch (error) {
         status.textContent = error.message || 'Não foi possível carregar as notícias.';
       } finally {
