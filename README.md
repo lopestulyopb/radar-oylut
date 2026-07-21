@@ -1,6 +1,6 @@
-# Radar Oylut — Etapa 3 / Sprint 2
+# Radar Oylut — Etapa 3 / Sprint 2.1
 
-Versão 5.2.0.
+Versão 5.2.1.
 
 ## Fontes ativas
 
@@ -12,10 +12,13 @@ Versão 5.2.0.
 
 O Portal Correio permanece removido.
 
-## Alterações
+## Correções desta versão
 
-- Deduplicação revista com título, resumo, entidades, ações e números.
-- Regra mais rígida para partidas esportivas.
-- Sequência editorial fixa: policial/crimes; serviço útil; esporte; política/justiça; geral/entretenimento.
-- Inclusão de WSCOM e Polêmica Paraíba por RSS, com fallback em HTML.
-- Extração de datas também por JSON-LD.
+- Deduplicação ampliada com sinônimos e regras para eventos específicos.
+- Comparação com todos os integrantes de cada grupo, evitando que uma fonte fique isolada após a primeira fusão.
+- Agrupamento reforçado para: caso Rubinho, vacinação gripe/influenza, alertas do Inmet, idoso arrastado por cavalo, prisão por maus-tratos e limites de gastos eleitorais.
+- Seleção do melhor título e resumo entre as fontes agrupadas.
+- Limpeza do sufixo “WSCOM - Quem sabe, faz conteúdo” e de assinaturas editoriais.
+- Exclusão de opinião, blogs, colunas, transmissões ao vivo e releases institucionais sem serviço público.
+- Sequência fixa: crimes/policial e acidentes; serviço/utilidade pública; esporte; política/Justiça; geral/entretenimento.
+- Classificação contextual para evitar que notícias administrativas da Polícia Federal sejam tratadas como policiais.

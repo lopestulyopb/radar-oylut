@@ -115,7 +115,9 @@ def clean_text(value, limit=None):
     text = BeautifulSoup(value or "", "html.parser").get_text(" ", strip=True)
     text = re.sub(r"\s+", " ", text).strip()
     text = re.sub(r"^(MaisPB|ClickPB|WSCOM|Polêmica Paraíba|Jornal da Paraíba)\s*[•|\-:]\s*", "", text, flags=re.I)
-    text = re.sub(r"\s*[|\-]\s*(MaisPB|ClickPB|WSCOM|Polêmica Paraíba|Jornal da Paraíba)$", "", text, flags=re.I)
+    text = re.sub(r"\s*[|\-]\s*(MaisPB|ClickPB|WSCOM|Polêmica Paraíba|Jornal da Paraíba)(?:\s*[|\-]\s*Quem sabe, faz conteúdo)?$", "", text, flags=re.I)
+    text = re.sub(r"\s*-\s*WSCOM\s*-\s*Quem sabe, faz conteúdo\s*$", "", text, flags=re.I)
+    text = re.sub(r"^(?:[A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç.-]+(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç.-]+){0,3})\s*[–—-]\s*(?:MaisPB|ClickPB|WSCOM|Polêmica Paraíba|Jornal da Paraíba)\s+", "", text)
     if limit and len(text) > limit:
         text = text[: limit - 1].rstrip() + "…"
     return text
@@ -167,24 +169,77 @@ def infer_source(url):
     return host.replace("www.", "")
 
 
+def is_excluded_content(url, title="", summary=""):
+    path = urlparse(url).path.lower()
+    text = normalize_text(f"{title} {summary}")
+    blocked_path = (
+        "/espaco-opiniao/", "/opiniao-e-blogs/", "/opiniao/", "/blogs/",
+        "/colunas/", "/colunistas/", "/ao-vivo", "clickfm-ao-vivo",
+    )
+    if any(token in path for token in blocked_path):
+        return True
+    blocked_text = (
+        "por janguiê diniz", "por cid gadelha", "ao vivo",
+        "quem sabe faz conteudo fique informado",
+    )
+    if any(token in text for token in blocked_text):
+        return True
+    # Releases empresariais/institucionais sem serviço concreto à população.
+    institutional = ("recebe comitiva", "reforça compromisso", "referencia em inovacao e tecnologia")
+    if any(token in text for token in institutional) and not any(k in text for k in ("vaga", "curso", "inscricao", "servico", "gratuito")):
+        return True
+    return False
+
+
 def infer_editoria(url, title="", summary=""):
-    parts = [part for part in urlparse(url).path.lower().split("/") if part]
+    path = urlparse(url).path.lower()
+    text = normalize_text(f"{title} {summary}")
+
+    # Exceções contextuais: instituições policiais podem aparecer em fatos políticos/administrativos.
+    if any(k in text for k in ("eduardo bolsonaro", "abandono de cargo", "demissao")) and "policia federal" in text:
+        return "Política"
+
+    # Segurança/crimes e acidentes.
+    security_terms = (
+        "homicidio", "assassin", "feminicidio", "estupro", "tiroteio", "trafico",
+        "preso", "presa", "prisao", "crime", "criminos", "golpe", "fraude", "falso whatsapp", "ameaca",
+        "maus tratos", "arma", "drogas", "mandado", "foragid", "roubo", "furto", "morre", "morte",
+    )
+    traffic_terms = ("acidente", "atropel", "colisao", "capot", "trem", "rodovia", "transito")
+    if any(k in text for k in traffic_terms):
+        return "Trânsito"
+    if any(k in text for k in security_terms):
+        return "Segurança"
+
+    # Serviço/utilidade pública, incluindo saúde, educação, direitos e oportunidades.
+    service_terms = (
+        "vaga", "emprego", "concurso", "inscricao", "curso", "prazo", "calendario",
+        "vacina", "vacinacao", "influenza", "gripe", "alerta", "chuva", "previsao do tempo",
+        "fgts", "inss", "bolsa familia", "abastecimento", "direitos", "voo cancelado",
+        "bagagem extraviada", "saude em acao", "inclusao escolar", "gratuita", "gratuito",
+        "cotas raciais", "reserva de vagas", "transporte escolar",
+    )
+    if any(k in text for k in service_terms):
+        return "Serviço"
+
+    # Esporte.
+    sport_terms = ("futebol", "campeonato", "botafogo pb", "treze", "sousa", "serie c", "serie d", "copa do mundo", "volei", "olimpica", "corrida")
+    if "/esporte" in path or any(k in text for k in sport_terms):
+        return "Esportes"
+
+    # Política e Justiça ficam depois do esporte.
+    justice_terms = ("justica", "tribunal", "ministerio publico", "mppb", "juiz", "juiza", "reu", "reus", "processo", "denuncia", "absolve", "acao judicial")
+    politics_terms = ("prefeito", "governador", "deputado", "senador", "eleicao", "eleicoes", "partido", "assembleia", "alpb", "ldo", "tse", "tre pb", "guia eleitoral")
+    if any(k in text for k in justice_terms):
+        return "Justiça"
+    if any(k in text for k in politics_terms):
+        return "Política"
+
+    # URL como fallback, sem se sobrepor ao contexto acima.
+    parts = [part for part in path.split("/") if part]
     for part in parts:
         if part in EDITORIA_LABELS:
             return EDITORIA_LABELS[part]
-    text = normalize_text(f"{title} {summary}")
-    if any(word in text for word in ("preso", "policia", "homicidio", "crime", "assassin", "tiroteio", "estupro", "trafico")):
-        return "Segurança"
-    if any(word in text for word in ("acidente", "atropel", "rodovia", "transito", "interdita", "colisao", "capota")):
-        return "Trânsito"
-    if any(word in text for word in ("vaga", "concurso", "inscricao", "abastecimento", "prazo", "vacina", "alerta", "chuva", "beneficio")):
-        return "Serviço"
-    if any(word in text for word in ("futebol", "campeonato", "botafogo pb", "treze", "sousa", "serie c", "serie d", "copa")):
-        return "Esportes"
-    if any(word in text for word in ("prefeito", "governador", "deputado", "senador", "eleicao", "partido", "assembleia", "ldo")):
-        return "Política"
-    if any(word in text for word in ("justica", "tribunal", "ministerio publico", "juiz", "reu", "reus", "processo")):
-        return "Justiça"
     return "Geral"
 
 
@@ -208,18 +263,14 @@ def calculate_relevance(title, summary, editoria, published_at):
 
 
 def editorial_bucket(item):
-    """Ordem definida pelo produto: policial, serviço, esporte, política/justiça, geral."""
+    """Ordem fixa: policial, serviço, esporte, política/Justiça, geral/entretenimento."""
     editoria = item.get("editoria_interna", "Geral")
-    text = normalize_text(f"{item.get('titulo', '')} {item.get('resumo', '')}")
-    if editoria in {"Segurança", "Trânsito"} or any(k in text for k in ("homicidio", "preso", "crime", "acidente", "atropel", "tiroteio")):
-        return 0
-    if editoria in {"Serviço", "Saúde", "Educação", "Economia"} or any(k in text for k in ("vaga", "prazo", "inscricao", "vacina", "alerta", "chuva", "fgts", "inss", "abastecimento")):
-        return 1
-    if editoria == "Esportes":
-        return 2
-    if editoria in {"Política", "Justiça"}:
-        return 3
-    return 4
+    return {
+        "Segurança": 0, "Trânsito": 0,
+        "Serviço": 1, "Saúde": 1, "Educação": 1, "Economia": 1,
+        "Esportes": 2,
+        "Política": 3, "Justiça": 3,
+    }.get(editoria, 4)
 
 
 def is_clickpb_article(url):
@@ -341,7 +392,7 @@ async def enrich_article(client, candidate, hours, semaphore):
     if published_at and not (cutoff <= published_at <= now + timedelta(minutes=20)):
         return None
     title, summary = clean_text(title, 190), clean_text(summary, 320)
-    if not title: return None
+    if not title or is_excluded_content(candidate["url"], title, summary): return None
     editoria = infer_editoria(candidate["url"], title, summary)
     score = calculate_relevance(title, summary, editoria, published_at)
     source = infer_source(candidate["url"])
@@ -362,8 +413,25 @@ def stem_token(word):
     return word
 
 
+def canonicalize_event_text(text):
+    text = normalize_text(text)
+    replacements = {
+        r"\binfluenza\b": "gripe",
+        r"\bimunizacao\b": "vacinacao",
+        r"\btorna(?:m)? reus?\b|\bvira(?:m)? reus?\b|\btransforma(?:m)? .*? em reus?\b|\baceita denuncia\b": "justica aceita denuncia reus",
+        r"\barrastado por cavalo\b|\barrastado e morto por cavalo\b": "morte arrastado cavalo",
+        r"\bforagida ha 10 anos\b|\bcondenada por maus tratos\b": "condenada maus tratos presa",
+        r"\blimite de gastos(?: de campanha)?\b|\bpoderao gastar\b": "limite gastos campanha",
+        r"\bchuvas intensas\b|\bprevisao do tempo\b": "alerta chuva inmet",
+        r"\bex esposa\b|\bnamorada\b": "companheira",
+    }
+    for pattern, replacement in replacements.items():
+        text = re.sub(pattern, replacement, text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def meaningful_words(text):
-    return {stem_token(w) for w in normalize_text(text).split() if len(w) >= 4 and w not in STOPWORDS}
+    return {stem_token(w) for w in canonicalize_event_text(text).split() if len(w) >= 4 and w not in STOPWORDS}
 
 
 def extract_numbers(text):
@@ -371,31 +439,28 @@ def extract_numbers(text):
 
 
 def action_labels(text):
-    words = set(normalize_text(text).split())
+    words = set(canonicalize_event_text(text).split())
     labels = set()
     for label, variants in ACTION_GROUPS.items():
         if words & variants:
             labels.add(label)
+    if {"reus", "denuncia"} & words:
+        labels.add("denuncia")
     return labels
 
 
 def event_signature(item):
-    title = normalize_text(item.get("titulo", ""))
-    summary = normalize_text(item.get("resumo", ""))
+    title = canonicalize_event_text(item.get("titulo", ""))
+    summary = canonicalize_event_text(item.get("resumo", ""))
     title_words = meaningful_words(title)
     all_words = meaningful_words(f"{title} {summary}")
-    generic = {"policia", "civil", "militar", "justica", "ministerio", "publico", "cidade", "estado", "programa"}
+    generic = {"policia", "civil", "militar", "justica", "ministerio", "publico", "cidade", "estado", "programa", "paraiba"}
     entities = {w for w in title_words if w not in generic and len(w) >= 5}
     return {
-        "title": title,
-        "summary": summary,
-        "title_words": title_words,
-        "words": all_words,
-        "entities": entities,
-        "actions": action_labels(f"{title} {summary}"),
+        "title": title, "summary": summary, "title_words": title_words, "words": all_words,
+        "entities": entities, "actions": action_labels(f"{title} {summary}"),
         "numbers": extract_numbers(f"{title} {summary}"),
-        "editoria": item.get("editoria_interna", "Geral"),
-        "bucket": editorial_bucket(item),
+        "editoria": item.get("editoria_interna", "Geral"), "bucket": editorial_bucket(item),
     }
 
 
@@ -410,8 +475,26 @@ def jaccard(a, b):
 def same_sports_event(sa, sb):
     similarity = SequenceMatcher(None, sa["title"], sb["title"]).ratio()
     overlap = token_overlap(sa["title_words"], sb["title_words"])
-    # Esporte exige coincidência muito forte para não juntar partidas distintas.
-    return similarity >= 0.88 or (overlap >= 0.84 and len(sa["title_words"] & sb["title_words"]) >= 5)
+    common = sa["title_words"] & sb["title_words"]
+    return similarity >= 0.90 or (overlap >= 0.86 and len(common) >= 5)
+
+
+def distinctive_event_rules(sa, sb):
+    joined = f"{sa['title']} {sa['summary']} || {sb['title']} {sb['summary']}"
+    both = lambda terms: all(any(term in side for term in terms) for side in (f"{sa['title']} {sa['summary']}", f"{sb['title']} {sb['summary']}"))
+    if both(("rubinho",)) and both(("reu", "denuncia")):
+        return True
+    if both(("cavalo",)) and both(("arrast", "morte", "morre")) and both(("sao jose de piranhas",)):
+        return True
+    if both(("maus tratos",)) and both(("filha",)) and both(("presa", "prisao", "foragida")):
+        return True
+    if both(("gripe", "influenza")) and both(("vacina", "vacinacao")):
+        return True
+    if both(("inmet",)) and both(("chuva", "alerta", "previsao")):
+        return True
+    if both(("limite gastos campanha",)) and both(("eleicoes 2026", "eleicao 2026")):
+        return True
+    return False
 
 
 def same_event(a, b):
@@ -420,6 +503,8 @@ def same_event(a, b):
         return False
     if sa["editoria"] == "Esportes" or sb["editoria"] == "Esportes":
         return sa["editoria"] == sb["editoria"] and same_sports_event(sa, sb)
+    if distinctive_event_rules(sa, sb):
+        return True
 
     title_sim = SequenceMatcher(None, sa["title"], sb["title"]).ratio()
     title_overlap = token_overlap(sa["title_words"], sb["title_words"])
@@ -428,49 +513,64 @@ def same_event(a, b):
     common_actions = sa["actions"] & sb["actions"]
     common_numbers = sa["numbers"] & sb["numbers"]
 
-    # Não une editorias muito distantes sem evidência excepcional.
-    bucket_distance = abs(sa["bucket"] - sb["bucket"])
-    if bucket_distance >= 3 and title_sim < 0.82:
+    if abs(sa["bucket"] - sb["bucket"]) >= 3 and title_sim < 0.86:
         return False
-
-    if title_sim >= 0.72:
+    if title_sim >= 0.70:
         return True
-    if title_overlap >= 0.60 and len(sa["title_words"] & sb["title_words"]) >= 3:
+    if title_overlap >= 0.56 and len(sa["title_words"] & sb["title_words"]) >= 3:
         return True
-    if len(common_entities) >= 2 and common_actions and all_jaccard >= 0.18:
+    if len(common_entities) >= 2 and common_actions and all_jaccard >= 0.15:
         return True
-    if len(common_entities) >= 2 and all_jaccard >= 0.28:
+    if len(common_entities) >= 2 and all_jaccard >= 0.25:
         return True
-    if len(common_entities) >= 1 and common_actions and common_numbers and all_jaccard >= 0.20:
+    if len(common_entities) >= 1 and common_actions and common_numbers and all_jaccard >= 0.16:
         return True
-    # Casos com nome/local distintivo e descrição muito próxima, mesmo que o verbo mude.
-    if len(common_entities) >= 3 and all_jaccard >= 0.22:
+    if len(common_entities) >= 3 and all_jaccard >= 0.18:
         return True
     return False
 
 
+def summary_quality(text):
+    if not text or text == "Resumo não disponível na fonte.": return -1000
+    penalty = 0
+    low = normalize_text(text)
+    for bad in ("descubra", "clique", "fique informado", "ultimas postagens", "boas praticas se compartilham"):
+        if bad in low: penalty += 80
+    return min(len(text), 320) - penalty
+
+
+def title_quality(text):
+    low = normalize_text(text)
+    penalty = 0
+    for bad in ("quem sabe faz conteudo", "confira", "veja", "saiba"):
+        if bad in low: penalty += 25
+    return min(len(text), 180) - penalty
+
+
 def merge_duplicate_events(items):
     groups = []
-    # Mais recentes e relevantes viram a referência do grupo.
     ordered = sorted(items, key=lambda x: (x.get("publicado_em") or "", x["relevancia_interna"]), reverse=True)
     for item in ordered:
-        match = next((saved for saved in groups if same_event(item, saved)), None)
+        match = next((group for group in groups if any(same_event(item, member) for member in group["_members"])), None)
         if match is None:
+            item["_members"] = [dict(item)]
             groups.append(item)
             continue
+        match["_members"].append(dict(item))
         existing_links = {source["link"] for source in match["fontes"]}
         for source in item["fontes"]:
             if source["link"] not in existing_links:
                 match["fontes"].append(source)
-        if len(item["titulo"]) > len(match["titulo"]):
+        if title_quality(item["titulo"]) > title_quality(match["titulo"]):
             match["titulo"] = item["titulo"]
-        if item["resumo"] != "Resumo não disponível na fonte." and len(item["resumo"]) > len(match["resumo"]):
+        if summary_quality(item["resumo"]) > summary_quality(match["resumo"]):
             match["resumo"] = item["resumo"]
         match["relevancia_interna"] = max(match["relevancia_interna"], item["relevancia_interna"]) + min(8, 2 * (len(match["fontes"]) - 1))
         dates = [d for d in (match.get("publicado_em"), item.get("publicado_em")) if d]
         match["publicado_em"] = max(dates) if dates else None
-        # Reclassifica após a fusão, caso o título mais completo mude a editoria.
         match["editoria_interna"] = infer_editoria(match["fontes"][0]["link"], match["titulo"], match["resumo"])
+    for group in groups:
+        group.pop("_members", None)
     return groups
 
 
