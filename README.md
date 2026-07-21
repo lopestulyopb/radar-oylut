@@ -1,19 +1,21 @@
-# Radar Oylut — Etapa 3 / Sprint 1.1
+# Radar Oylut — Etapa 3 / Sprint 2
 
-Versão 5.1.1.
+Versão 5.2.0.
 
 ## Fontes ativas
+
 - ClickPB
 - Jornal da Paraíba
 - MaisPB
+- WSCOM
+- Polêmica Paraíba
+
+O Portal Correio permanece removido.
 
 ## Alterações
-- Portal Correio removido integralmente da coleta.
-- Deduplicação refeita para comparar título, resumo, entidades, ações e números.
-- Casos com títulos diferentes, mas referentes ao mesmo fato, passam a ser agrupados com maior precisão.
-- Regra específica para esportes evita juntar partidas diferentes.
-- Todos os links de fontes diferentes permanecem reunidos no mesmo card.
-- Esportes continuam no fim dos resultados.
 
-## Implantação
-Substitua os arquivos do repositório pelos desta versão e faça commit. O Render deve iniciar um novo deploy automaticamente.
+- Deduplicação revista com título, resumo, entidades, ações e números.
+- Regra mais rígida para partidas esportivas.
+- Sequência editorial fixa: policial/crimes; serviço útil; esporte; política/justiça; geral/entretenimento.
+- Inclusão de WSCOM e Polêmica Paraíba por RSS, com fallback em HTML.
+- Extração de datas também por JSON-LD.
