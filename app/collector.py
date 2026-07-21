@@ -13,7 +13,6 @@ from dateutil import parser as date_parser
 
 JORNAL_FEED = "https://jornaldaparaiba.com.br/feed"
 CLICKPB_LATEST = "https://www.clickpb.com.br/ultimas-noticias"
-PORTAL_CORREIO_LATEST = "https://portalcorreio.com.br/noticias/"
 MAISPB_LATEST = "https://www.maispb.com.br/ultimas-noticias"
 
 EDITORIA_LABELS = {
@@ -121,7 +120,6 @@ def infer_source(url):
     host = urlparse(url).netloc.lower()
     if "clickpb" in host: return "ClickPB"
     if "jornaldaparaiba" in host: return "Jornal da Paraíba"
-    if "portalcorreio" in host: return "Portal Correio"
     if "maispb" in host: return "MaisPB"
     return host.replace("www.", "")
 
@@ -170,16 +168,6 @@ def is_clickpb_article(url):
     return parsed.netloc.lower().replace("www.", "") == "clickpb.com.br" and not any(p in blocked for p in parts) and len(parts) >= 2 and parsed.path.lower().endswith(".html")
 
 
-def is_portal_correio_article(url, anchor_text=""):
-    parsed = urlparse(url)
-    if parsed.netloc.lower().replace("www.", "") != "portalcorreio.com.br": return False
-    parts = [p for p in parsed.path.lower().strip("/").split("/") if p]
-    blocked = {"noticias", "politica", "cotidiano", "economia", "saude", "esportes", "entretenimento", "geral", "tag", "author", "page", "fale-conosco", "politica-de-privacidade", "editais"}
-    if not parts or len(parts) == 1 and parts[0] in blocked: return False
-    if any(p in {"page", "tag", "author"} for p in parts): return False
-    return len(clean_text(anchor_text)) >= 28 and len(parts[-1]) >= 18
-
-
 def is_maispb_article(url, anchor_text=""):
     parsed = urlparse(url)
     host = parsed.netloc.lower().replace("www.", "")
@@ -208,10 +196,6 @@ async def collect_html_candidates(client, page_url, validator, limit=60):
 
 async def collect_clickpb_candidates(client):
     return await collect_html_candidates(client, CLICKPB_LATEST, lambda url, _text: is_clickpb_article(url), 60)
-
-
-async def collect_portal_correio_candidates(client):
-    return await collect_html_candidates(client, PORTAL_CORREIO_LATEST, is_portal_correio_article, 60)
 
 
 async def collect_maispb_candidates(client):
@@ -265,21 +249,95 @@ async def enrich_article(client, candidate, hours, semaphore):
     }
 
 
+
 def meaningful_words(text):
     return {w for w in normalize_text(text).split() if len(w) >= 4 and w not in STOPWORDS}
 
 
-def same_event(a, b):
-    ta, tb = normalize_text(a["titulo"]), normalize_text(b["titulo"])
-    wa, wb = meaningful_words(ta), meaningful_words(tb)
-    if not wa or not wb: return False
-    similarity = SequenceMatcher(None, ta, tb).ratio()
-    intersection = wa & wb
-    overlap_min = len(intersection) / max(1, min(len(wa), len(wb)))
-    jaccard = len(intersection) / max(1, len(wa | wb))
-    # Muito rigoroso: exige forte coincidência lexical, reduzindo falsos agrupamentos.
-    return similarity >= 0.78 or (overlap_min >= 0.72 and jaccard >= 0.48 and len(intersection) >= 3)
+def extract_numbers(text):
+    return set(re.findall(r"\b\d+(?:[\.,]\d+)?\b", normalize_text(text)))
 
+
+def event_signature(item):
+    title = normalize_text(item.get("titulo", ""))
+    summary = normalize_text(item.get("resumo", ""))
+    combined = f"{title} {summary}"
+    words = meaningful_words(combined)
+
+    # Palavras que ajudam a identificar o núcleo factual.
+    action_terms = {
+        "morre", "morto", "morta", "mata", "matar", "preso", "presa", "prende",
+        "prisao", "homicidio", "assassinato", "acidente", "atropelamento", "atropela",
+        "denuncia", "denunciado", "denunciada", "reu", "reus", "absolve", "alerta",
+        "vacina", "vacinacao", "chuva", "golpe", "incendio", "apreende", "operacao",
+        "desaparecido", "desaparecida", "interdita", "suspende", "aprova", "abre",
+    }
+    actions = {w for w in words if any(w.startswith(term[:5]) for term in action_terms)}
+
+    # Entidades aproximadas: palavras relevantes do título, excluindo termos genéricos.
+    generic = {
+        "policia", "civil", "militar", "justica", "paraiba", "jornal", "maispb",
+        "clickpb", "caso", "homem", "mulher", "idoso", "idosa", "cidade", "estado",
+        "suspeito", "suspeita", "investigado", "investigada", "programa", "confira",
+    }
+    title_entities = {w for w in meaningful_words(title) if w not in generic and len(w) >= 5}
+
+    return {
+        "title": title,
+        "summary": summary,
+        "words": words,
+        "title_words": meaningful_words(title),
+        "entities": title_entities,
+        "actions": actions,
+        "numbers": extract_numbers(combined),
+        "editoria": item.get("editoria_interna", "Geral"),
+    }
+
+
+def same_sports_event(sa, sb):
+    # Em esporte, só agrupa quando há forte coincidência no título.
+    intersection = sa["title_words"] & sb["title_words"]
+    overlap = len(intersection) / max(1, min(len(sa["title_words"]), len(sb["title_words"])))
+    similarity = SequenceMatcher(None, sa["title"], sb["title"]).ratio()
+    return similarity >= 0.86 or (overlap >= 0.82 and len(intersection) >= 5)
+
+
+def same_event(a, b):
+    sa, sb = event_signature(a), event_signature(b)
+    if not sa["title_words"] or not sb["title_words"]:
+        return False
+
+    if sa["editoria"] == "Esportes" or sb["editoria"] == "Esportes":
+        return sa["editoria"] == sb["editoria"] and same_sports_event(sa, sb)
+
+    title_similarity = SequenceMatcher(None, sa["title"], sb["title"]).ratio()
+    title_intersection = sa["title_words"] & sb["title_words"]
+    title_overlap = len(title_intersection) / max(1, min(len(sa["title_words"]), len(sb["title_words"])))
+
+    all_intersection = sa["words"] & sb["words"]
+    all_jaccard = len(all_intersection) / max(1, len(sa["words"] | sb["words"]))
+
+    entity_intersection = sa["entities"] & sb["entities"]
+    action_intersection = sa["actions"] & sb["actions"]
+    number_intersection = sa["numbers"] & sb["numbers"]
+
+    # 1) Títulos muito semelhantes.
+    if title_similarity >= 0.74:
+        return True
+
+    # 2) Mesmo núcleo factual: entidades + ação compatível.
+    if len(entity_intersection) >= 2 and (action_intersection or title_overlap >= 0.42):
+        return True
+
+    # 3) Título e resumo compartilham conjunto expressivo de informações.
+    if title_overlap >= 0.48 and all_jaccard >= 0.30 and len(title_intersection) >= 3:
+        return True
+
+    # 4) Casos com nome/local/número distintivo, mesmo que os verbos mudem.
+    if len(entity_intersection) >= 1 and number_intersection and all_jaccard >= 0.24:
+        return True
+
+    return False
 
 def merge_duplicate_events(items):
     groups = []
@@ -317,12 +375,12 @@ async def collect_news(hours=24):
         "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
     }
     async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=25) as client:
-        clickpb, jornal, correio, maispb = await asyncio.gather(
+        clickpb, jornal, maispb = await asyncio.gather(
             collect_clickpb_candidates(client), collect_jornal_candidates(client, hours),
-            collect_portal_correio_candidates(client), collect_maispb_candidates(client),
+            collect_maispb_candidates(client),
         )
         candidates, seen = [], set()
-        for candidate in clickpb + jornal + correio + maispb:
+        for candidate in clickpb + jornal + maispb:
             if candidate["url"] not in seen:
                 seen.add(candidate["url"]); candidates.append(candidate)
         semaphore = asyncio.Semaphore(10)

@@ -16,7 +16,7 @@ COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
 app = FastAPI(
     title="Radar Oylut",
     description="Radar jornalístico protegido por login.",
-    version="5.1.0",
+    version="5.1.1",
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -160,7 +160,7 @@ async def sair():
 
 @app.get("/saude")
 def saude():
-    return {"status": "ok", "versao": "5.1.0"}
+    return {"status": "ok", "versao": "5.1.1"}
 
 
 @app.get("/radar", operation_id="buscarNoticiasRecentes")
