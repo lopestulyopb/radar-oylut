@@ -1,5 +1,21 @@
+RADAR OYLUT — ETAPA 5: ASSINATURAS
+
 1. Execute supabase_fase_usuarios.sql no SQL Editor do Supabase.
-2. Substitua no GitHub: app/main.py, app/templates/login.html, app/templates/radar.html, app/static/radar.js e app/static/style.css.
-3. Crie no GitHub: cadastro.html, esqueci-senha.html, redefinir-senha.html e minha-conta.html dentro de app/templates.
-4. No Render, confirme SUPABASE_URL, SUPABASE_ANON_KEY, COOKIE_SECURE=true e SITE_URL=https://radar-oylut.onrender.com.
-5. Google não foi incluído porque permanece desativado no Supabase e ficou para uma etapa posterior.
+2. Substitua no GitHub os arquivos da pasta app e o SQL desta entrega.
+3. Novos usuários começam automaticamente com subscription_status = pending.
+4. Para liberar um usuário manualmente, execute no Supabase:
+
+update public.profiles
+set subscription_status = 'active',
+    subscription_expires_at = now() + interval '30 days'
+where email = 'EMAIL_DO_USUARIO';
+
+5. Status disponíveis:
+   pending  = Aguardando ativação
+   active   = Ativa
+   expired  = Expirada
+   inactive = Inativa
+
+6. Usuários sem assinatura ativa continuam acessando Minha Conta, mas não conseguem executar consultas.
+7. Minha Conta exibe plano, status, validade, uso diário e consultas restantes.
+8. No Render, mantenha SUPABASE_URL, SUPABASE_ANON_KEY, COOKIE_SECURE=true e SITE_URL configurados.
