@@ -1,0 +1,5 @@
+1. Execute supabase_fase_usuarios.sql no SQL Editor do Supabase.
+2. Substitua no GitHub: app/main.py, app/templates/login.html, app/templates/radar.html, app/static/radar.js e app/static/style.css.
+3. Crie no GitHub: cadastro.html, esqueci-senha.html, redefinir-senha.html e minha-conta.html dentro de app/templates.
+4. No Render, confirme SUPABASE_URL, SUPABASE_ANON_KEY, COOKIE_SECURE=true e SITE_URL=https://radar-oylut.onrender.com.
+5. Google não foi incluído porque permanece desativado no Supabase e ficou para uma etapa posterior.

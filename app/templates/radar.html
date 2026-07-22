@@ -13,7 +13,7 @@
       <div><div class="brand">OYLUT</div><h2>Menu</h2></div>
       <button id="fecharMenu" class="icon-button secondary" type="button" aria-label="Fechar menu">×</button>
     </div>
-
+    <div class="sidebar-section"><p class="sidebar-label">Conta</p><a class="sidebar-link" href="/minha-conta">Minha Conta</a></div>
     <div class="sidebar-section">
       <p class="sidebar-label">Filtrar por editoria</p>
       <div class="editoria-options" role="radiogroup" aria-label="Escolha a editoria">
@@ -25,43 +25,20 @@
         <label><input type="radio" name="editoria" value="geral"><span>Geral e entretenimento</span></label>
       </div>
     </div>
-    <p class="sidebar-note">Este menu poderá receber novas ferramentas nas próximas versões.</p>
   </aside>
-
   <header class="topbar">
-    <div class="topbar-title">
-      <button id="abrirMenu" class="menu-button secondary" type="button" aria-label="Abrir menu" aria-expanded="false">☰</button>
-      <div><div class="brand">OYLUT</div><h1>Radar</h1></div>
-    </div>
+    <div class="topbar-title"><button id="abrirMenu" class="menu-button secondary" type="button" aria-label="Abrir menu" aria-expanded="false">☰</button><div><div class="brand">OYLUT</div><h1>Radar</h1></div></div>
     <form method="post" action="/sair"><button class="secondary" type="submit">Sair</button></form>
   </header>
-
   <main class="radar-shell">
-    <p class="user">Acesso: {{ email }}</p>
+    <div class="user-line"><p class="user">Acesso: {{ email }}</p><p id="usageCounter" class="usage-counter" data-used="{{ consultas_usadas }}" data-limit="{{ limite_diario }}">{{ consultas_restantes }} consulta(s) restante(s) hoje</p></div>
     <section class="control-panel">
-      <div class="selection-summary">
-        <div>
-          <h2>Período das notícias</h2>
-          <p id="editoriaAtual" class="active-filter">Editoria: Todas as editorias</p>
-        </div>
-      </div>
-      <div class="periods" role="radiogroup" aria-label="Escolha o período">
-        {% for hora in [1, 2, 6, 12, 24] %}
-          <label><input type="radio" name="horas" value="{{ hora }}" {% if hora == 24 %}checked{% endif %}><span>{{ hora }}h</span></label>
-        {% endfor %}
-      </div>
-      <div class="actions">
-        <button id="iniciar" type="button">Iniciar</button>
-        <button id="copiar" class="secondary" type="button" hidden>Copiar resultados</button>
-      </div>
+      <div class="selection-summary"><div><h2>Período das notícias</h2><p id="editoriaAtual" class="active-filter">Editoria: Todas as editorias</p></div></div>
+      <div class="periods" role="radiogroup" aria-label="Escolha o período">{% for hora in [1, 2, 6, 12, 24] %}<label><input type="radio" name="horas" value="{{ hora }}" {% if hora == 24 %}checked{% endif %}><span>{{ hora }}h</span></label>{% endfor %}</div>
+      <div class="actions"><button id="iniciar" type="button" {% if consultas_restantes == 0 %}disabled{% endif %}>Iniciar</button><button id="copiar" class="secondary" type="button" hidden>Copiar resultados</button></div>
     </section>
-
-    <section aria-live="polite">
-      <div id="status" class="status"></div>
-      <div id="resultados" class="results"></div>
-    </section>
+    <section aria-live="polite"><div id="status" class="status">{% if consultas_restantes == 0 %}Você atingiu o limite diário de {{ limite_diario }} consultas.{% endif %}</div><div id="resultados" class="results"></div></section>
   </main>
-
   <script src="/static/radar.js" defer></script>
 </body>
 </html>
