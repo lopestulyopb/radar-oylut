@@ -1,24 +1,46 @@
-RADAR OYLUT — VERSÃO 6.1.1
+RADAR OYLUT — ETAPA 6.1.1
+PRIORIDADE EDITORIAL + CONSOLIDAÇÃO DEFINITIVA DE DUPLICIDADES
 
-Esta atualização mantém a Etapa 5 (assinaturas) e implementa a primeira parte da Etapa 6.1.
+BASE DESTA ENTREGA
+- Esta versão foi construída diretamente sobre o ZIP da Etapa 5 enviado pelo usuário.
+- Autenticação, assinatura, Minha Conta, limite diário e SQL da Etapa 5 foram preservados.
+- A Fase 4 não foi usada como base.
 
-IMPLEMENTADO NA 6.1.1
-- Novo algoritmo de Prioridade Editorial, voltado para telejornal popular da Paraíba.
-- João Pessoa, Região Metropolitana, Campina Grande e interior da Paraíba recebem maior prioridade.
-- Segurança, crimes, mortes, acidentes, trânsito, operações, apreensões e prisões recebem maior prioridade.
-- Serviço, saúde, educação e economia são organizados conforme o impacto ao público.
-- Política protocolar, conteúdo institucional, celebridades e conteúdo sem relação com a Paraíba perdem prioridade.
-- Conteúdo nacional só permanece quando envolve a Paraíba ou possui impacto amplo para o país.
-- Conteúdo claramente de outros estados é removido da pesquisa local.
-- Duplicidades são consolidadas em um único fato.
-- Todas as fontes da mesma pauta permanecem reunidas no mesmo card.
-- O melhor título e o melhor resumo são escolhidos na consolidação.
+O QUE FOI IMPLEMENTADO
+1. O antigo ordenamento passa a ser substituído por Prioridade Editorial.
+2. O motor considera localização, natureza do fato, urgência, impacto público, atualidade e potencial para reportagem de TV.
+3. A prioridade geográfica segue: João Pessoa, Região Metropolitana, Campina Grande, interior da Paraíba, Nordeste, Brasil e internacional.
+4. Segurança, mortes, acidentes, trânsito, operações, prisões, apreensões, desaparecimentos e emergências recebem maior prioridade.
+5. Serviços úteis — vacinação, inscrições, cursos, concursos, vagas, alertas, abastecimento e transporte — recebem prioridade adequada.
+6. Política protocolar, institucional, celebridades, nacional sem impacto local e internacional sem impacto no Brasil perdem prioridade.
+7. Matérias equivalentes são consolidadas em uma só pauta.
+8. O resultado consolidado preserva todas as fontes nos campos `fontes` e `links`.
+9. O melhor título e o melhor resumo disponíveis são escolhidos para representar a pauta.
+10. A classificação visual (Urgente, Muito Relevante, Serviço etc.) NÃO faz parte desta entrega; ela será implementada na 6.1.2.
 
-AINDA NÃO IMPLEMENTADO (6.1.2)
-- Classificação visual: Urgente, Muito Relevante, Serviço, Institucional, Política e Geral.
-- Separação dos resultados em blocos editoriais.
+ARQUIVOS PARA SUBSTITUIR/ADICIONAR NO GITHUB
+- app/main.py (substituir)
+- app/editorial.py (adicionar — arquivo novo)
+- LEIA-ME.txt (substituir, opcional)
 
-PUBLICAÇÃO
-Substitua no GitHub os arquivos/pastas presentes neste pacote, preservando os demais arquivos do repositório que não aparecem no ZIP, especialmente os coletores/scrapers e arquivos de deploy.
+NÃO SUBSTITUA NEM APAGUE
+- app/collector.py
+- app/templates/
+- app/static/
+- requirements.txt
+- render.yaml
+- Procfile
+- qualquer outro arquivo que já esteja funcionando no repositório
 
-Não é necessário executar novo SQL no Supabase para esta versão.
+BANCO DE DADOS
+- Não há novo SQL para a Etapa 6.1.1.
+- O arquivo supabase_fase_usuarios.sql foi mantido somente por fazer parte da base da Etapa 5.
+- Não é necessário executá-lo novamente se a Etapa 5 já está configurada.
+
+VALIDAÇÃO APÓS O DEPLOY
+1. Abra /saude e confirme a versão 6.1.1.
+2. Faça login com uma assinatura ativa.
+3. Pesquise 1 hora em Todas as editorias.
+4. Confirme que pautas repetidas aparecem uma única vez.
+5. Confirme que notícias locais e de maior impacto aparecem antes de notícias nacionais, internacionais ou institucionais.
+6. Confirme que o contador diário continua diminuindo normalmente.

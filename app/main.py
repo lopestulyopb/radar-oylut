@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.collector import collect_news
-from app.editorial import consolidate_news
+from app.editorial import consolidate_and_rank
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
@@ -527,8 +527,8 @@ async def radar(
         )
 
     try:
-        noticias = await collect_news(hours=horas, editoria=editoria)
-        noticias = consolidate_news(noticias)
+        noticias_coletadas = await collect_news(hours=horas, editoria=editoria)
+        noticias = consolidate_and_rank(noticias_coletadas)
     except Exception:
         return JSONResponse({"detail": "Não foi possível executar o Radar agora."}, status_code=503)
 
