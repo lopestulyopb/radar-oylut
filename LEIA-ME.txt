@@ -44,3 +44,11 @@ VALIDAÇÃO APÓS O DEPLOY
 4. Confirme que pautas repetidas aparecem uma única vez.
 5. Confirme que notícias locais e de maior impacto aparecem antes de notícias nacionais, internacionais ou institucionais.
 6. Confirme que o contador diário continua diminuindo normalmente.
+
+ETAPA 6.1.1 — PRIORIDADE EDITORIAL E DUPLICIDADES
+- O ranking anterior foi substituído por Prioridade Editorial.
+- A prioridade considera geografia, impacto, urgência, utilidade pública, atualidade e potencial de reportagem local.
+- Política protocolar, institucional, celebridades e conteúdo nacional/internacional sem impacto local são rebaixados.
+- Pautas equivalentes de portais diferentes são consolidadas em um único resultado, preservando todas as fontes.
+- A classificação visual e os blocos editoriais ficam para a Etapa 6.1.2.
+- Não há nova migração SQL nesta etapa.

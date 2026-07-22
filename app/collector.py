@@ -9,10 +9,7 @@ import httpx
 from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
 
-from app.editorial.categories import calculate_relevance, editorial_bucket, infer_editoria
-from app.editorial.deduplication import merge_duplicate_events
-from app.editorial.filters import is_excluded_content
-from app.editorial.text import clean_text, normalize_text
+from app.editorial import calculate_relevance, clean_text, infer_editoria, is_excluded_content, normalize_text
 
 JORNAL_FEED = "https://jornaldaparaiba.com.br/feed"
 CLICKPB_LATEST = "https://www.clickpb.com.br/ultimas-noticias"
@@ -273,11 +270,5 @@ async def collect_news(hours=24, editoria="todas"):
                     candidates.append(candidate)
         semaphore = asyncio.Semaphore(10)
         enriched = await asyncio.gather(*(enrich_article(client, c, hours, semaphore, editoria) for c in candidates))
-    events = merge_duplicate_events([item for item in enriched if item])
-    events.sort(key=lambda x: (
-        editorial_bucket(x),
-        -x["relevancia_interna"],
-        -(datetime.fromisoformat(x["publicado_em"]).timestamp() if x.get("publicado_em") else 0),
-        x["titulo"].lower(),
-    ))
-    return [public_item(item) for item in events]
+    # A consolidação e a ordenação editorial são feitas uma única vez em main.py.
+    return [public_item(item) for item in enriched if item]
