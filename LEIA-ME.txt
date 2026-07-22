@@ -1,11 +1,9 @@
-Radar Oylut 6.2 — Experiência e performance
+Radar Oylut 6.3 — Inteligência Editorial
 
-Alterações principais:
-- “Editor-Chefe” passa a aparecer como “Padrão”.
-- Mantidas as opções Padrão e Mais recentes.
-- Resumos mais curtos, diretos e factuais.
-- Fontes exibidas somente como botões com o nome do portal.
-- Botões de fontes ficam em linha horizontal, com rolagem no celular.
-- Renderização dos cards em lote para reduzir trabalho do navegador.
-- Cache temporário de 3 minutos para acelerar consultas repetidas e a troca de ordenação.
-- Nenhuma alteração SQL é necessária.
+Mudanças principais:
+- o badge agora mostra somente a natureza da pauta;
+- categorias: Segurança, Justiça, Saúde, Serviço, Economia, Meio Ambiente, Educação, Esportes, Cultura, Política, Institucional e Geral;
+- a prioridade editorial continua invisível e é usada apenas na ordenação Padrão;
+- decisões judiciais deixam de aparecer como Serviço;
+- atos partidários deixam de aparecer como Institucional;
+- nenhuma alteração SQL é necessária.

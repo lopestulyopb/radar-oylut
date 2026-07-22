@@ -74,7 +74,7 @@ def normalize_subscription(profile: dict) -> dict:
 app = FastAPI(
     title="Radar Oylut",
     description="Radar jornalístico protegido por login.",
-    version="6.2.0",
+    version="6.3.0",
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

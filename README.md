@@ -1,47 +1,14 @@
-# Radar Oylut — Etapa 3, Sprint 4.1
+# Radar Oylut 6.3
 
-Versão 5.4.0.
+Versão com natureza da pauta separada da prioridade editorial.
 
-## Portais ativos
+## Interface
 
-- ClickPB
-- Jornal da Paraíba
-- MaisPB
-- Polêmica Paraíba
+Os cards exibem apenas uma categoria temática: Segurança, Justiça, Saúde, Serviço, Economia, Meio Ambiente, Educação, Esportes, Cultura, Política, Institucional ou Geral.
 
-Foram retirados WSCOM e G1 Paraíba.
+## Ordenação
 
-## Novidades
+- **Padrão:** usa prioridade editorial interna, gravidade, alcance, localização e recência.
+- **Mais recentes:** usa somente a data e o horário.
 
-- Menu lateral preparado para receber outras ferramentas.
-- Filtro por editoria:
-  - Todas as editorias
-  - Segurança e trânsito
-  - Serviço, saúde e educação
-  - Esportes
-  - Política e Justiça
-  - Geral e entretenimento
-- A tela inicial continua priorizando a seleção do período: 1h, 2h, 6h, 12h ou 24h.
-- A editoria selecionada é enviada para o backend.
-- O backend realiza uma pré-classificação antes de abrir cada matéria, reduzindo o número de páginas processadas quando há filtro.
-- A classificação final é conferida após a leitura da matéria.
-- Links das fontes continuam em botões.
-- Ao copiar, as URLs completas continuam no texto.
-
-## Execução
-
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
-
-## Sprint 4.1
-
-Fontes ativas: ClickPB, Jornal da Paraíba, MaisPB e Polêmica Paraíba. Patos Online e Diário do Sertão foram removidos para reduzir ruído, volume e tempo de processamento.
-
-
-## Etapa 6.1.2
-- Classificação editorial automática.
-- Ordenação padrão Editor-Chefe.
-- Ordenação alternativa Mais recentes.
-- Serviço crítico separado de serviço de oportunidade.
-- Deduplicação mais conservadora para não unir pautas apenas pela localização.
+A prioridade não aparece nos cards. Nenhuma migração SQL é necessária.

@@ -5,7 +5,7 @@ Responsabilidades desta etapa:
 - consolidar pautas equivalentes, mesmo quando os títulos usam palavras diferentes;
 - filtrar páginas que não são notícias.
 
-Inclui classificação editorial e ordenação Editor-Chefe ou cronológica.
+Inclui natureza da pauta visível e prioridade editorial invisível para ordenação Padrão ou cronológica.
 """
 from __future__ import annotations
 
@@ -322,22 +322,12 @@ def editorial_priority(item: dict[str, Any], now: datetime | None = None) -> flo
 
 
 
-CLASS_ORDER = {
-    "urgente": 6,
-    "muito_relevante": 5,
-    "servico": 4,
-    "institucional": 3,
-    "politica": 2,
-    "geral": 1,
-}
-
-CLASS_LABELS = {
-    "urgente": "Urgente",
-    "muito_relevante": "Muito relevante",
-    "servico": "Serviço",
-    "institucional": "Institucional",
-    "politica": "Política",
-    "geral": "Geral",
+PRIORITY_ORDER = {
+    "urgente": 5,
+    "muito_relevante": 4,
+    "relevante": 3,
+    "normal": 2,
+    "baixa": 1,
 }
 
 CRITICAL_SERVICE_TERMS = (
@@ -349,11 +339,6 @@ CRITICAL_SERVICE_TERMS = (
 OPPORTUNITY_SERVICE_TERMS = (
     "vagas", "selecao", "concurso", "inscricao", "inscricoes", "curso",
     "matricula", "castracao", "premio professor", "desconto", "convenio",
-)
-
-INSTITUTIONAL_TERMS = (
-    "prefeitura", "governo da paraiba", "governador", "secretaria", "fiep",
-    "sindojus", "universidade", "uniesp", "uninassau", "unimed",
 )
 
 GRAVE_EVENT_TERMS = (
@@ -368,41 +353,114 @@ HIGH_RELEVANCE_TERMS = (
     "esgoto", "tce", "contas irregulares", "decisao judicial",
 )
 
+NATURE_LABELS = {
+    "seguranca": "Segurança",
+    "justica": "Justiça",
+    "saude": "Saúde",
+    "servico": "Serviço",
+    "economia": "Economia",
+    "meio_ambiente": "Meio Ambiente",
+    "educacao": "Educação",
+    "esportes": "Esportes",
+    "cultura": "Cultura",
+    "politica": "Política",
+    "institucional": "Institucional",
+    "geral": "Geral",
+}
 
-def classify_editorial(item: dict[str, Any]) -> tuple[str, str, int]:
-    """Classifica a pauta antes da ordenação, como uma mesa de edição."""
-    title = normalize_text(_title(item))
+
+def classify_priority(item: dict[str, Any]) -> tuple[str, int]:
+    """Define a importância para a ordenação. Este dado não é exibido no card."""
     text = normalize_text(f"{_title(item)} {_summary(item)} {item.get('editoria_interna', '')}")
-
     is_retrospective = _contains(text, RETROSPECTIVE_TERMS)
     is_politics = _contains(text, (
         "prefeito", "governador", "deputado", "senador", "vereador", "politica",
         "assembleia", "camara municipal", "partido", "chapa", "eleicoes",
     ))
     high_impact_politics = _contains(text, HIGH_IMPACT_POLITICS)
-    routine_institutional = _contains(text, ROUTINE_POLITICS) or _contains(text, COMMERCIAL_TERMS)
 
     if _contains(text, GRAVE_EVENT_TERMS) and not is_retrospective:
-        return "urgente", CLASS_LABELS["urgente"], CLASS_ORDER["urgente"]
-
+        return "urgente", PRIORITY_ORDER["urgente"]
     if _contains(text, CRITICAL_SERVICE_TERMS):
-        return "muito_relevante", CLASS_LABELS["muito_relevante"], CLASS_ORDER["muito_relevante"]
-
+        return "muito_relevante", PRIORITY_ORDER["muito_relevante"]
     if _contains(text, HIGH_RELEVANCE_TERMS) or (is_politics and high_impact_politics):
-        return "muito_relevante", CLASS_LABELS["muito_relevante"], CLASS_ORDER["muito_relevante"]
-
+        return "muito_relevante", PRIORITY_ORDER["muito_relevante"]
     if _contains(text, OPPORTUNITY_SERVICE_TERMS):
-        return "servico", CLASS_LABELS["servico"], CLASS_ORDER["servico"]
+        return "normal", PRIORITY_ORDER["normal"]
+    if is_politics and (_contains(text, ROUTINE_POLITICS) or _contains(text, PROMOTIONAL_POLITICS)):
+        return "baixa", PRIORITY_ORDER["baixa"]
+    if _contains(text, COMMERCIAL_TERMS):
+        return "baixa", PRIORITY_ORDER["baixa"]
+    return "relevante", PRIORITY_ORDER["relevante"]
 
-    if is_politics:
-        if routine_institutional or _contains(text, PROMOTIONAL_POLITICS):
-            return "institucional", CLASS_LABELS["institucional"], CLASS_ORDER["institucional"]
-        return "politica", CLASS_LABELS["politica"], CLASS_ORDER["politica"]
 
-    if routine_institutional or (_contains(text, INSTITUTIONAL_TERMS) and _contains(text, ("parceria", "acompanha", "destaca", "celebra", "discute"))):
-        return "institucional", CLASS_LABELS["institucional"], CLASS_ORDER["institucional"]
+def classify_nature(item: dict[str, Any]) -> tuple[str, str]:
+    """Classifica sobre o que é a pauta. Esta é a etiqueta exibida ao usuário."""
+    title = normalize_text(_title(item))
+    text = normalize_text(f"{_title(item)} {_summary(item)} {item.get('editoria_interna', '')}")
+    url = ((_sources(item) or [{"link": ""}])[0].get("link") or "")
+    path = normalize_text(urlparse(url).path)
 
-    return "geral", CLASS_LABELS["geral"], CLASS_ORDER["geral"]
+    # Segurança vem antes de Justiça quando há ação policial, crime, prisão ou violência.
+    if _contains(text, (
+        "morte", "morto a tiros", "homicidio", "feminicidio", "chacina", "estupro",
+        "assalto", "roubo", "furto", "receptacao", "trafico", "drogas", "arma",
+        "prisao", "preso", "presa", "mandado", "operacao policial", "policia civil",
+        "policia militar", "pf ", "prf ", "sequestro", "refem", "ameaca", "perseguicao",
+        "violencia domestica", "golpe", "fraude", "acidente", "atropel", "colisao",
+        "capotamento", "afogamento", "resgate no mar", "incendio", "explosao",
+    )):
+        return "seguranca", NATURE_LABELS["seguranca"]
+
+    if _contains(text, (
+        "justica", "tribunal", "trf", "stf", "stj", "juiz", "juiza", "sentenca",
+        "condenacao", "condenado", "condenada", "decisao judicial", "ministerio publico",
+        "mpf", "mppb", "processo", "acao judicial", "tce", "contas irregulares",
+        "reprovar contas", "reprovacao das contas",
+    )):
+        return "justica", NATURE_LABELS["justica"]
+
+    if _contains(text, ("vacina", "vacinacao", "hospital", "saude", "doenca", "surto", "medicamento", "atendimento medico", "sus")):
+        return "saude", NATURE_LABELS["saude"]
+
+    if _contains(text, ("poluicao", "esgoto", "desmatamento", "meio ambiente", "ambiental", "area de preservacao", "area de preservacao permanente", "fauna", "flora", "rio paraiba", "rios do litoral", "obras embargadas")):
+        return "meio_ambiente", NATURE_LABELS["meio_ambiente"]
+
+    if _contains(text, ("escola", "educacao", "universidade", "faculdade", "enem", "professor", "aluno", "estudante", "matricula escolar")):
+        return "educacao", NATURE_LABELS["educacao"]
+
+    if _contains(text, ("economia", "emprego", "salario", "preco", "gasolina", "inss", "imposto", "credito", "empresa", "exportadora", "comercio", "industria")):
+        return "economia", NATURE_LABELS["economia"]
+
+    if any(k in path or k in text for k in ("esporte", "futebol", "basquete", "volei", "badminton", "campeonato", "torneio", "botafogo pb", "treze", "campinense")):
+        return "esportes", NATURE_LABELS["esportes"]
+
+    if any(k in path or k in text for k in ("cultura", "festival", "show", "musica", "hip hop", "hip-hop", "teatro", "cinema", "livro", "exposicao", "sabadinho bom")):
+        return "cultura", NATURE_LABELS["cultura"]
+
+    if _contains(text, (
+        "partido", "pl ", "psb", "pp ", "pt ", "mdb", "uniao brasil", "eleicao",
+        "eleicoes", "candidato", "candidata", "pre candidato", "pre-candidato", "chapa",
+        "vice", "diretorio", "apoio politico", "deputado", "senador", "vereador",
+        "assembleia legislativa", "camara municipal",
+    )):
+        return "politica", NATURE_LABELS["politica"]
+
+    if _contains(text, OPPORTUNITY_SERVICE_TERMS) or _contains(text, (
+        "bolsa familia", "falta de agua", "falta de energia", "abastecimento", "transito",
+        "interdicao", "inscricoes abertas", "cadastro", "castracao gratuita", "entrega de alimentos",
+    )):
+        return "servico", NATURE_LABELS["servico"]
+
+    # Institucional apenas para atos administrativos ou de organizações, sem disputa partidária.
+    if _contains(text, (
+        "prefeitura", "governo da paraiba", "secretaria", "cagepa", "der", "fiep",
+        "sindojus", "unimed", "uniesp", "uninassau", "inaugura", "entrega obra",
+        "firma convenio", "parceria", "reuniao institucional",
+    )):
+        return "institucional", NATURE_LABELS["institucional"]
+
+    return "geral", NATURE_LABELS["geral"]
 
 def calculate_relevance(title: str, summary: str, editoria: str, published_at: Any) -> float:
     return editorial_priority({"titulo": title, "resumo": summary, "editoria_interna": editoria, "publicado_em": published_at})
@@ -510,10 +568,12 @@ def _merge_cluster(cluster: list[dict[str, Any]]) -> dict[str, Any]:
         "fontes": sources,
         "prioridade_editorial": max(editorial_priority(item) for item in cluster),
     }
-    class_key, class_label, class_order = classify_editorial(merged)
-    merged["classificacao_editorial"] = class_key
-    merged["classificacao_label"] = class_label
-    merged["classe_ordem"] = class_order
+    nature_key, nature_label = classify_nature(merged)
+    priority_key, priority_order = classify_priority(merged)
+    merged["classificacao_editorial"] = nature_key
+    merged["classificacao_label"] = nature_label
+    merged["prioridade_nivel"] = priority_key
+    merged["classe_ordem"] = priority_order
     return merged
 
 
