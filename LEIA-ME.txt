@@ -1,69 +1,11 @@
-RADAR OYLUT — ETAPA 6.1.1b
-PRIORIDADE EDITORIAL + CONSOLIDAÇÃO DEFINITIVA DE DUPLICIDADES
+Radar Oylut 6.2 — Experiência e performance
 
-BASE DESTA ENTREGA
-- Esta versão foi construída diretamente sobre o ZIP da Etapa 5 enviado pelo usuário.
-- Autenticação, assinatura, Minha Conta, limite diário e SQL da Etapa 5 foram preservados.
-- A Fase 4 não foi usada como base.
-
-O QUE FOI IMPLEMENTADO
-1. O antigo ordenamento passa a ser substituído por Prioridade Editorial.
-2. O motor considera localização, natureza do fato, urgência, impacto público, atualidade e potencial para reportagem de TV.
-3. A prioridade geográfica segue: João Pessoa, Região Metropolitana, Campina Grande, interior da Paraíba, Nordeste, Brasil e internacional.
-4. Segurança, mortes, acidentes, trânsito, operações, prisões, apreensões, desaparecimentos e emergências recebem maior prioridade.
-5. Serviços úteis — vacinação, inscrições, cursos, concursos, vagas, alertas, abastecimento e transporte — recebem prioridade adequada.
-6. Política protocolar, institucional, celebridades, nacional sem impacto local e internacional sem impacto no Brasil perdem prioridade.
-7. Matérias equivalentes são consolidadas em uma só pauta.
-8. O resultado consolidado preserva todas as fontes nos campos `fontes` e `links`.
-9. O melhor título e o melhor resumo disponíveis são escolhidos para representar a pauta.
-10. A classificação visual (Urgente, Muito Relevante, Serviço etc.) NÃO faz parte desta entrega; ela será implementada na 6.1.2.
-
-ARQUIVOS PARA SUBSTITUIR/ADICIONAR NO GITHUB
-- app/main.py (substituir)
-- app/editorial.py (adicionar — arquivo novo)
-- LEIA-ME.txt (substituir, opcional)
-
-NÃO SUBSTITUA NEM APAGUE
-- app/collector.py
-- app/templates/
-- app/static/
-- requirements.txt
-- render.yaml
-- Procfile
-- qualquer outro arquivo que já esteja funcionando no repositório
-
-BANCO DE DADOS
-- Não há novo SQL para a Etapa 6.1.1b.
-- O arquivo supabase_fase_usuarios.sql foi mantido somente por fazer parte da base da Etapa 5.
-- Não é necessário executá-lo novamente se a Etapa 5 já está configurada.
-
-VALIDAÇÃO APÓS O DEPLOY
-1. Abra /saude e confirme a versão 6.1.1b.
-2. Faça login com uma assinatura ativa.
-3. Pesquise 1 hora em Todas as editorias.
-4. Confirme que pautas repetidas aparecem uma única vez.
-5. Confirme que notícias locais e de maior impacto aparecem antes de notícias nacionais, internacionais ou institucionais.
-6. Confirme que o contador diário continua diminuindo normalmente.
-
-ETAPA 6.1.1b — PRIORIDADE EDITORIAL E DUPLICIDADES
-- O ranking anterior foi substituído por Prioridade Editorial.
-- A prioridade considera geografia, impacto, urgência, utilidade pública, atualidade e potencial de reportagem local.
-- Política protocolar, institucional, celebridades e conteúdo nacional/internacional sem impacto local são rebaixados.
-- Pautas equivalentes de portais diferentes são consolidadas em um único resultado, preservando todas as fontes.
-- A classificação visual e os blocos editoriais ficam para a Etapa 6.1.2.
-- Não há nova migração SQL nesta etapa.
-
-CORREÇÃO 6.1.1b
-- Deduplicação por evento, entidades, local e âncoras específicas.
-- Penalização de retrospectivas que mencionam fatos antigos.
-- Mortes, crimes graves, emergências e serviços de amplo alcance recebem maior prioridade.
-- Política protocolar, conteúdo promocional e páginas que não são notícias recebem forte redução ou são removidas.
-- Não exige alteração no Supabase.
-
-
-## Etapa 6.1.2
-- Classificação editorial automática.
-- Ordenação padrão Editor-Chefe.
-- Ordenação alternativa Mais recentes.
-- Serviço crítico separado de serviço de oportunidade.
-- Deduplicação mais conservadora para não unir pautas apenas pela localização.
+Alterações principais:
+- “Editor-Chefe” passa a aparecer como “Padrão”.
+- Mantidas as opções Padrão e Mais recentes.
+- Resumos mais curtos, diretos e factuais.
+- Fontes exibidas somente como botões com o nome do portal.
+- Botões de fontes ficam em linha horizontal, com rolagem no celular.
+- Renderização dos cards em lote para reduzir trabalho do navegador.
+- Cache temporário de 3 minutos para acelerar consultas repetidas e a troca de ordenação.
+- Nenhuma alteração SQL é necessária.

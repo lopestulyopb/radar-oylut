@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import date, datetime
 from typing import Any
 from urllib.parse import quote
@@ -18,6 +19,28 @@ SITE_URL = os.getenv("SITE_URL", "https://radar-oylut.onrender.com").rstrip("/")
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
 DAILY_LIMIT = 18
 
+
+
+NEWS_CACHE_TTL_SECONDS = int(os.getenv("NEWS_CACHE_TTL_SECONDS", "180"))
+_news_cache: dict[tuple[int, str], tuple[float, list[dict[str, Any]]]] = {}
+
+
+def get_cached_news(hours: int, editoria: str) -> list[dict[str, Any]] | None:
+    cached = _news_cache.get((hours, editoria))
+    if not cached:
+        return None
+    created_at, items = cached
+    if time.monotonic() - created_at > NEWS_CACHE_TTL_SECONDS:
+        _news_cache.pop((hours, editoria), None)
+        return None
+    return items
+
+
+def set_cached_news(hours: int, editoria: str, items: list[dict[str, Any]]) -> None:
+    _news_cache[(hours, editoria)] = (time.monotonic(), items)
+    if len(_news_cache) > 24:
+        oldest_key = min(_news_cache, key=lambda key: _news_cache[key][0])
+        _news_cache.pop(oldest_key, None)
 
 SUBSCRIPTION_LABELS = {
     "pending": "Aguardando ativação",
@@ -51,7 +74,7 @@ def normalize_subscription(profile: dict) -> dict:
 app = FastAPI(
     title="Radar Oylut",
     description="Radar jornalístico protegido por login.",
-    version="6.1.2",
+    version="6.2.0",
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -528,7 +551,10 @@ async def radar(
         )
 
     try:
-        noticias_coletadas = await collect_news(hours=horas, editoria=editoria)
+        noticias_coletadas = get_cached_news(horas, editoria)
+        if noticias_coletadas is None:
+            noticias_coletadas = await collect_news(hours=horas, editoria=editoria)
+            set_cached_news(horas, editoria, noticias_coletadas)
         noticias = consolidate_and_rank(noticias_coletadas, order=ordenar)
     except Exception:
         return JSONResponse({"detail": "Não foi possível executar o Radar agora."}, status_code=503)

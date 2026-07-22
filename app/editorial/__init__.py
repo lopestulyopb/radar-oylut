@@ -124,6 +124,40 @@ def _summary(item: dict[str, Any]) -> str:
     return clean_text(item.get("resumo") or item.get("summary") or item.get("descricao") or "")
 
 
+def concise_summary(value: str, title: str = "", limit: int = 235) -> str:
+    """Transforma descrições de portal em uma síntese curta, factual e legível."""
+    text = clean_text(value)
+    if not text:
+        return "Resumo não disponível na fonte."
+
+    # Remove aberturas burocráticas e chamadas promocionais sem retirar o fato principal.
+    text = re.sub(
+        r"^(?:a|o)\s+(?:policia civil|prefeitura|governo|secretaria|ministerio publico federal|mpf|tribunal|justica)"
+        r"(?:\s+da paraiba|\s+de [^,.;]+)?(?:,\s*por meio de [^,.;]+)?\s+",
+        lambda match: match.group(0).split(',')[0].strip().capitalize() + " ",
+        text,
+        flags=re.I,
+    )
+    text = re.sub(r"^(?:descubra|saiba|veja|confira)\s+[^.!?]{0,80}[.!?]\s*", "", text, flags=re.I)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    selected: list[str] = []
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        selected.append(sentence)
+        candidate = " ".join(selected)
+        if len(candidate) >= 125 or len(selected) == 2:
+            break
+
+    result = " ".join(selected) or text
+    if normalize_text(result) == normalize_text(title):
+        result = text
+    return clean_text(result, limit)
+
+
 def _published(item: dict[str, Any]) -> Any:
     return item.get("publicado_em") or item.get("published_at") or item.get("data_publicacao")
 
@@ -471,7 +505,7 @@ def _merge_cluster(cluster: list[dict[str, Any]]) -> dict[str, Any]:
 
     merged = {
         "titulo": _title(best_title),
-        "resumo": _summary(best_summary) or "Resumo não disponível na fonte.",
+        "resumo": concise_summary(_summary(best_summary), _title(best_title)),
         "publicado_em": newest_value,
         "fontes": sources,
         "prioridade_editorial": max(editorial_priority(item) for item in cluster),
