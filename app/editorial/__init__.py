@@ -1,10 +1,11 @@
-"""Motor de Prioridade Editorial do Radar Oylut — Etapa 6.1.1.
+"""Motor de Prioridade Editorial do Radar Oylut — Etapa 6.1.1b.
 
-Esta etapa implementa somente:
-- prioridade editorial;
-- consolidação definitiva de pautas duplicadas.
+Responsabilidades desta etapa:
+- calcular prioridade editorial com visão de telejornal local;
+- consolidar pautas equivalentes, mesmo quando os títulos usam palavras diferentes;
+- filtrar páginas que não são notícias.
 
-A classificação visual por Urgente, Serviço, Política etc. fica para a 6.1.2.
+A classificação visual por Urgente, Serviço, Política etc. permanece para a 6.1.2.
 """
 from __future__ import annotations
 
@@ -26,44 +27,75 @@ STOPWORDS = {
     "que", "se", "sem", "sob", "sobre", "um", "uma", "uns", "umas", "apos",
     "contra", "durante", "nesta", "neste", "novo", "nova", "pb", "diz", "veja",
     "confira", "saiba", "portal", "jornal", "homem", "mulher", "suspeito", "suspeita",
+    "policia", "policial", "civil", "realiza", "realizou", "caso", "cidade", "estado",
 }
 
+# Termos equivalentes são reduzidos a uma raiz comum para melhorar a consolidação.
+STEM_REPLACEMENTS = (
+    (r"\batropel\w*\b", "atropel"),
+    (r"\bprodutor(?:a)?\s+(?:cultural|de\s+eventos?)\b", "produtor_evento"),
+    (r"\bhidrometr\w*\b", "hidrometro"),
+    (r"\brecepta\w*\b", "receptacao"),
+    (r"\bfurt\w*\b", "furto"),
+    (r"\bmoedas?\s+falsas?\b", "moeda_falsa"),
+    (r"\btrafic\w*\b", "trafico"),
+    (r"\bpolui\w*\b", "poluicao"),
+    (r"\besgotos?\b", "esgoto"),
+    (r"\birregular\w*\b", "irregular"),
+    (r"\bprest\w*\s+depoimento\b", "depoimento"),
+    (r"\bse\s+apresent\w*\b", "depoimento"),
+    (r"\boperac\w*\b", "operacao"),
+    (r"\bpris\w*\b", "prisao"),
+    (r"\bassalt\w*\b", "assalto"),
+    (r"\brefe(?:m|ns)\b", "refem"),
+    (r"\bmort[oa]\b|\bmorre\w*\b|\bhomicid\w*\b|\bassassin\w*\b", "morte"),
+)
+
 LOCATION_RULES: tuple[tuple[int, tuple[str, ...]], ...] = (
-    (110, ("joao pessoa", "capital paraibana")),
-    (100, ("cabedelo", "bayeux", "santa rita", "conde", "lucena", "regiao metropolitana")),
-    (92, ("campina grande",)),
-    (78, ("paraiba", "paraibano", "paraibana", "sertao", "brejo", "cariri", "curimatau", "litoral sul", "litoral norte")),
-    (36, ("nordeste",)),
-    (14, ("brasil", "nacional", "brasileiro", "brasileira")),
+    (120, ("joao pessoa", "capital paraibana")),
+    (112, ("cabedelo", "bayeux", "santa rita", "conde", "lucena", "regiao metropolitana")),
+    (104, ("campina grande",)),
+    (88, ("paraiba", "paraibano", "paraibana", "sertao", "brejo", "cariri", "curimatau", "litoral sul", "litoral norte")),
+    (38, ("nordeste",)),
+    (12, ("brasil", "nacional", "brasileiro", "brasileira")),
     (0, ("internacional", "mundo", "exterior")),
 )
 
+# A ordem importa: o primeiro grupo encontrado define a natureza principal do fato.
 TOPIC_RULES: tuple[tuple[int, tuple[str, ...]], ...] = (
-    (112, ("morte", "morre", "morreu", "homicidio", "assassinato", "feminicidio", "tiroteio", "chacina")),
-    (104, ("acidente", "atropelamento", "colisao", "capotamento", "desabamento", "incendio", "explosao")),
-    (100, ("prisao", "preso", "presa", "operacao policial", "mandado", "apreensao", "sequestro", "desaparecido", "desaparecida")),
-    (92, ("br 230", "br-230", "transito", "engarrafamento", "interdicao", "bloqueio de via")),
-    (88, ("emergencia", "alerta", "chuva forte", "alagamento", "risco", "evacuacao")),
-    (78, ("vacinacao", "vacina", "inscricao", "inscricoes", "concurso", "selecao", "vagas", "curso gratuito", "matricula", "abastecimento", "falta de agua", "falta de energia", "transporte publico")),
-    (66, ("hospital", "saude", "doenca", "surto", "atendimento", "medicamento")),
-    (56, ("escola", "educacao", "universidade", "enem", "professor", "aluno")),
-    (48, ("economia", "emprego", "salario", "preco", "gasolina", "inss", "imposto", "beneficio")),
+    (150, ("morte", "morto a tiros", "tiroteio", "chacina", "feminicidio")),
+    (138, ("familia mantida refem", "refem", "sequestro", "assalto", "roubo", "estupro", "violencia domestica", "gasolina na casa")),
+    (126, ("acidente", "atropel", "colisao", "capotamento", "desabamento", "incendio", "explosao", "presa as ferragens")),
+    (122, ("prisao", "operacao", "mandado", "apreensao", "trafico", "moeda_falsa", "arma", "drogas")),
+    (112, ("br 230", "br-230", "transito", "engarrafamento", "interdicao", "bloqueio de via")),
+    (108, ("emergencia", "alerta", "chuva forte", "alagamento", "risco", "evacuacao")),
+    (100, ("vacinacao", "vacina", "inscricao", "inscricoes", "concurso", "selecao", "vagas", "curso gratuito", "matricula", "castracao gratuita", "bolsa familia", "abastecimento", "falta de agua", "falta de energia", "transporte publico", "entrega de alimentos")),
+    (78, ("hospital", "saude", "doenca", "surto", "atendimento", "medicamento")),
+    (66, ("escola", "educacao", "universidade", "enem", "professor", "aluno")),
+    (58, ("economia", "emprego", "salario", "preco", "gasolina", "inss", "imposto", "beneficio")),
+    (44, ("meio ambiente", "ambiental", "poluicao", "esgoto", "desmatamento", "area de preservacao", "obras embargadas")),
     (34, ("esporte", "futebol", "botafogo pb", "treze", "campinense", "cultura", "festival")),
-    (28, ("meio ambiente", "ambiental", "poluicao", "desmatamento")),
 )
 
-URGENT_TERMS = ("agora", "urgente", "neste momento", "ao vivo", "acaba de", "interditado", "desaparecido", "desaparecida", "alerta", "evacuacao", "emergencia")
-ROUTINE_POLITICS = ("reuniao", "agenda", "visita", "participa", "participou", "discursa", "cerimonia", "solenidade", "inaugura", "inauguracao", "entrega", "recebe", "homenagem")
-HIGH_IMPACT_POLITICS = ("prisao", "preso", "investigacao", "operacao", "cassacao", "cassado", "impeachment", "eleicao", "decisao judicial", "escandalo", "denuncia", "afastamento")
-CELEBRITY_TERMS = ("famoso", "famosa", "celebridade", "influenciador", "influenciadora", "reality", "bbb", "atriz", "ator", "cantor", "cantora")
-NATIONAL_IMPACT = ("gasolina", "inss", "salario minimo", "imposto", "tributo", "lei", "aposentadoria", "beneficio", "energia", "combustivel", "pix", "sus", "eleicao presidencial")
-SERVICE_TERMS = TOPIC_RULES[5][1]
+URGENT_TERMS = ("agora", "urgente", "neste momento", "acaba de", "interditado", "desaparecido", "desaparecida", "alerta", "evacuacao", "emergencia")
+ROUTINE_POLITICS = ("reuniao", "agenda", "visita", "participa", "participou", "acompanha", "acompanhou", "discursa", "cerimonia", "solenidade", "inaugura", "inauguracao", "entrega", "recebe", "homenagem", "destaca", "defende", "ressalta", "legado")
+HIGH_IMPACT_POLITICS = ("prisao", "investigacao", "operacao", "cassacao", "cassado", "impeachment", "eleicao", "decisao judicial", "escandalo", "denuncia", "afastamento", "contas irregulares", "tce")
+PROMOTIONAL_POLITICS = ("lideranca regional", "capaz de levar demandas", "populacao reconhece", "pre candidato", "pre-candidato", "chapa", "aliados", "definicao do vice")
+CELEBRITY_TERMS = ("famoso", "famosa", "celebridade", "influenciador", "influenciadora", "reality", "bbb", "atriz", "ator", "cantor", "cantora", "virginia")
+NATIONAL_IMPACT = ("gasolina", "inss", "salario minimo", "imposto", "tributo", "lei", "aposentadoria", "beneficio", "energia", "combustivel", "pix", "sus", "bolsa familia")
+SERVICE_TERMS = TOPIC_RULES[6][1]
+RETROSPECTIVE_TERMS = ("relembre", "um mes apos", "dois meses apos", "meses apos", "anos apos", "como esta a investigacao", "volta a tv", "retorna a tv", "se emociona com surpresa", "homenagem")
+LOW_VALUE_TERMS = ("ao vivo", "clickfm", "opiniao", "artigo", "ranking de clubes", "privilegio digital", "ser offline")
+COMMERCIAL_TERMS = ("firma convenio", "garante descontos", "parceria com", "software lider mundial", "unica instituicao", "beneficios exclusivos")
 
 
 def normalize_text(value: Any) -> str:
     value = unicodedata.normalize("NFKD", str(value or ""))
     value = "".join(char for char in value if not unicodedata.combining(char))
     value = re.sub(r"[^a-zA-Z0-9\s-]", " ", value).lower()
+    value = re.sub(r"\s+", " ", value).strip()
+    for pattern, replacement in STEM_REPLACEMENTS:
+        value = re.sub(pattern, replacement, value)
     return re.sub(r"\s+", " ", value).strip()
 
 
@@ -107,7 +139,7 @@ def _parse_datetime(value: Any) -> datetime | None:
             dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         except ValueError:
             dt = None
-            for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"):
+            for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y, %H:%M", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"):
                 try:
                     dt = datetime.strptime(raw, fmt)
                     break
@@ -156,9 +188,9 @@ def infer_editoria(url: str, title: str = "", summary: str = "") -> str:
     text = normalize_text(f"{title} {summary}")
     if any(k in text for k in ("acidente", "atropel", "colisao", "capot", "rodovia", "transito")):
         return "Trânsito"
-    if any(k in text for k in ("homicidio", "assassin", "feminicidio", "estupro", "tiroteio", "trafico", "preso", "presa", "prisao", "crime", "golpe", "fraude", "arma", "drogas", "mandado", "foragid", "roubo", "furto", "morre", "morte")):
+    if any(k in text for k in ("morte", "feminicidio", "estupro", "tiroteio", "trafico", "prisao", "crime", "golpe", "fraude", "arma", "drogas", "mandado", "foragid", "roubo", "furto", "assalto", "refem")):
         return "Segurança"
-    if _contains(text, SERVICE_TERMS) or any(k in text for k in ("fgts", "bolsa familia", "previsao do tempo", "gratuita", "gratuito")):
+    if _contains(text, SERVICE_TERMS) or any(k in text for k in ("fgts", "previsao do tempo", "gratuita", "gratuito")):
         return "Serviço"
     if any(k in text for k in ("hospital", "saude", "doenca", "surto", "medicamento")):
         return "Saúde"
@@ -168,7 +200,7 @@ def infer_editoria(url: str, title: str = "", summary: str = "") -> str:
         return "Economia"
     if any(k in path or k in text for k in ("esporte", "futebol", "botafogo pb", "treze", "campinense")):
         return "Esportes"
-    if any(k in text for k in ("justica", "tribunal", "ministerio publico", "mppb", "juiz", "processo")):
+    if any(k in text for k in ("justica", "tribunal", "ministerio publico", "mppb", "juiz", "processo", "tce")):
         return "Justiça"
     if any(k in text for k in ("prefeito", "governador", "deputado", "senador", "eleicao", "partido", "assembleia", "camara municipal")):
         return "Política"
@@ -181,12 +213,15 @@ def is_excluded_content(url: str, title: str = "", summary: str = "") -> bool:
     blocked_path = ("/espaco-opiniao/", "/opiniao-e-blogs/", "/opiniao/", "/blogs/", "/colunas/", "/colunistas/", "/ao-vivo", "/blog/", "/artigo/")
     if any(token in path for token in blocked_path):
         return True
+    if _contains(text, LOW_VALUE_TERMS):
+        return True
     return any(token in text for token in ("por janguie diniz", "por cid gadelha", "quem sabe faz conteudo fique informado"))
 
 
 def editorial_priority(item: dict[str, Any], now: datetime | None = None) -> float:
     now = now or datetime.now(timezone.utc)
     title, summary = _title(item), _summary(item)
+    title_text = normalize_text(title)
     text = normalize_text(f"{title} {summary} {item.get('editoria_interna', '')}")
     score = 0.0
 
@@ -198,46 +233,83 @@ def editorial_priority(item: dict[str, Any], now: datetime | None = None) -> flo
         if _contains(text, terms):
             score += weight
             break
-    if _contains(text, URGENT_TERMS):
+
+    if _contains(title_text, URGENT_TERMS):
         score += 28
 
-    is_politics = _contains(text, ("prefeito", "governador", "deputado", "senador", "vereador", "politica", "assembleia", "camara municipal"))
+    # Mortes e crimes graves locais devem abrir antes de pautas leves e institucionais.
+    if _contains(text, ("morte", "morto a tiros", "feminicidio", "chacina")):
+        score += 44
+    if _contains(text, ("refem", "sequestro", "gasolina na casa", "presa as ferragens")):
+        score += 34
+    if _contains(text, ("vacinacao", "vacina")) and _contains(text, ("toda populacao", "todos os 223 municipios", "paraiba")):
+        score += 38
+
+    is_politics = _contains(text, ("prefeito", "governador", "deputado", "senador", "vereador", "politica", "assembleia", "camara municipal", "partido", "chapa"))
     if is_politics:
         if _contains(text, HIGH_IMPACT_POLITICS):
-            score += 48
+            score += 32
         elif _contains(text, ROUTINE_POLITICS):
-            score -= 38
+            score -= 72
         else:
-            score -= 16
+            score -= 34
+    if _contains(text, PROMOTIONAL_POLITICS):
+        score -= 64
 
     is_service = _contains(text, SERVICE_TERMS)
     if not is_service and _contains(text, ROUTINE_POLITICS):
-        score -= 30
-    if _contains(text, CELEBRITY_TERMS) and not _contains(text, ("morre", "morte", "prisao", "preso", "escandalo nacional")):
-        score -= 44
+        score -= 34
+    if _contains(text, CELEBRITY_TERMS) and not _contains(text, ("morte", "prisao", "escandalo nacional")):
+        score -= 62
+    if _contains(text, COMMERCIAL_TERMS):
+        score -= 72
+
+    # Retrospectivas e retornos não herdam a urgência do fato antigo mencionado no título.
+    if _contains(text, RETROSPECTIVE_TERMS):
+        score -= 118
 
     has_paraiba = _contains(text, ("paraiba", "paraibano", "paraibana", "joao pessoa", "campina grande", "bayeux", "cabedelo", "santa rita"))
     if _contains(text, ("brasil", "nacional", "brasileiro", "brasileira")) and not has_paraiba and not _contains(text, NATIONAL_IMPACT):
-        score -= 32
-    if _contains(text, ("internacional", "mundo", "exterior", "estados unidos", "europa", "asia")) and not has_paraiba:
-        score -= 58
+        score -= 48
+    if _contains(text, ("internacional", "mundo", "exterior", "estados unidos", "europa", "asia", "maduro", "trump")) and not has_paraiba:
+        score -= 76
 
     published = _parse_datetime(_published(item))
     if published:
         age_hours = max(0.0, (now - published).total_seconds() / 3600)
-        score += max(0.0, 34.0 - age_hours * 1.4)
+        score += max(0.0, 30.0 - age_hours * 1.1)
     else:
-        score += 4
+        score += 3
 
-    score += min(12.0, len(_tokens(title)) * 0.8)
+    score += min(10.0, len(_tokens(title)) * 0.65)
     if len(title) < 25:
         score -= 4
     return round(score, 2)
 
 
 def calculate_relevance(title: str, summary: str, editoria: str, published_at: Any) -> float:
-    """Compatibilidade com o coletor atual."""
     return editorial_priority({"titulo": title, "resumo": summary, "editoria_interna": editoria, "publicado_em": published_at})
+
+
+def _event_tokens(item: dict[str, Any]) -> set[str]:
+    # O resumo ajuda a ligar títulos diferentes que descrevem o mesmo fato.
+    return _tokens(f"{_title(item)} {_summary(item)}")
+
+
+def _event_anchors(text: str) -> set[str]:
+    anchors = set()
+    normalized = normalize_text(text)
+    phrases = (
+        "produtor_evento", "hidrometro", "moeda_falsa", "mucumagro", "baia da traicao",
+        "princesa isabel", "agua branca", "rio", "esgoto", "litoral", "drone",
+        "joao pessoa", "campina grande", "bayeux", "cabedelo", "alhandra",
+        "tce", "mpf", "prf", "pix", "br 230", "br-230",
+    )
+    for phrase in phrases:
+        if phrase in normalized:
+            anchors.add(phrase.replace(" ", "_"))
+    anchors.update(re.findall(r"\b(?:r\$\s*)?\d+(?:[.,]\d+)?\s*(?:mil|milhoes?|bilhoes?)?\b", normalized))
+    return anchors
 
 
 def _same_story(left: dict[str, Any], right: dict[str, Any]) -> bool:
@@ -250,24 +322,41 @@ def _same_story(left: dict[str, Any], right: dict[str, Any]) -> bool:
     lt, rt = _title(left), _title(right)
     if not lt or not rt:
         return False
+
     ln, rn = normalize_text(lt), normalize_text(rt)
     ratio = SequenceMatcher(None, ln, rn).ratio()
-    lw, rw = _tokens(lt), _tokens(rt)
+    lw, rw = _event_tokens(left), _event_tokens(right)
     if not lw or not rw:
-        return ratio >= 0.88
+        return ratio >= 0.86
 
     common = lw & rw
-    jaccard = len(common) / max(1, len(lw | rw))
+    union = lw | rw
+    jaccard = len(common) / max(1, len(union))
     containment = len(common) / max(1, min(len(lw), len(rw)))
-    left_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)?\b", ln))
-    right_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)?\b", rn))
-    if left_numbers and right_numbers and left_numbers.isdisjoint(right_numbers) and ratio < 0.9:
+
+    la = _event_anchors(f"{lt} {_summary(left)}")
+    ra = _event_anchors(f"{rt} {_summary(right)}")
+    shared_anchors = la & ra
+
+    # Não une pautas com números incompatíveis, salvo quando há dois fortes marcadores comuns.
+    left_numbers = {n for n in re.findall(r"\b\d+(?:[.,]\d+)?\b", ln) if len(n) >= 2}
+    right_numbers = {n for n in re.findall(r"\b\d+(?:[.,]\d+)?\b", rn) if len(n) >= 2}
+    incompatible_numbers = left_numbers and right_numbers and left_numbers.isdisjoint(right_numbers)
+    if incompatible_numbers and len(shared_anchors) < 2 and ratio < 0.90:
         return False
 
-    left_actions = {term for _, terms in TOPIC_RULES for term in terms if term in ln}
-    right_actions = {term for _, terms in TOPIC_RULES for term in terms if term in rn}
-    action_match = bool(left_actions & right_actions)
-    return ratio >= 0.82 or (jaccard >= 0.55 and containment >= 0.70) or (containment >= 0.82 and len(common) >= 4) or (action_match and containment >= 0.65 and len(common) >= 3)
+    # Critérios complementares: semelhança textual, sobreposição de evento e âncoras específicas.
+    if ratio >= 0.78:
+        return True
+    if jaccard >= 0.42 and containment >= 0.62 and len(common) >= 4:
+        return True
+    if containment >= 0.72 and len(common) >= 5:
+        return True
+    if shared_anchors and containment >= 0.46 and len(common) >= 3:
+        return True
+    if len(shared_anchors) >= 2 and len(common) >= 2:
+        return True
+    return False
 
 
 def _quality(item: dict[str, Any]) -> tuple[float, int, int, float]:
@@ -305,7 +394,15 @@ def _merge_cluster(cluster: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def consolidate_and_rank(news: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
-    valid = [item for item in (news or []) if isinstance(item, dict) and _title(item)]
+    valid = []
+    for item in news or []:
+        if not isinstance(item, dict) or not _title(item):
+            continue
+        first_url = (_sources(item) or [{"link": ""}])[0]["link"]
+        if is_excluded_content(first_url, _title(item), _summary(item)):
+            continue
+        valid.append(item)
+
     clusters: list[list[dict[str, Any]]] = []
     for item in sorted(valid, key=_quality, reverse=True):
         cluster = next((group for group in clusters if any(_same_story(item, existing) for existing in group)), None)
@@ -315,5 +412,11 @@ def consolidate_and_rank(news: list[dict[str, Any]] | None) -> list[dict[str, An
             cluster.append(item)
 
     consolidated = [_merge_cluster(cluster) for cluster in clusters]
-    consolidated.sort(key=lambda item: (item["prioridade_editorial"], _parse_datetime(item.get("publicado_em")) or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    consolidated.sort(
+        key=lambda item: (
+            item["prioridade_editorial"],
+            _parse_datetime(item.get("publicado_em")) or datetime.min.replace(tzinfo=timezone.utc),
+        ),
+        reverse=True,
+    )
     return consolidated

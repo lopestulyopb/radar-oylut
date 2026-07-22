@@ -1,4 +1,4 @@
-RADAR OYLUT — ETAPA 6.1.1
+RADAR OYLUT — ETAPA 6.1.1b
 PRIORIDADE EDITORIAL + CONSOLIDAÇÃO DEFINITIVA DE DUPLICIDADES
 
 BASE DESTA ENTREGA
@@ -33,22 +33,29 @@ NÃO SUBSTITUA NEM APAGUE
 - qualquer outro arquivo que já esteja funcionando no repositório
 
 BANCO DE DADOS
-- Não há novo SQL para a Etapa 6.1.1.
+- Não há novo SQL para a Etapa 6.1.1b.
 - O arquivo supabase_fase_usuarios.sql foi mantido somente por fazer parte da base da Etapa 5.
 - Não é necessário executá-lo novamente se a Etapa 5 já está configurada.
 
 VALIDAÇÃO APÓS O DEPLOY
-1. Abra /saude e confirme a versão 6.1.1.
+1. Abra /saude e confirme a versão 6.1.1b.
 2. Faça login com uma assinatura ativa.
 3. Pesquise 1 hora em Todas as editorias.
 4. Confirme que pautas repetidas aparecem uma única vez.
 5. Confirme que notícias locais e de maior impacto aparecem antes de notícias nacionais, internacionais ou institucionais.
 6. Confirme que o contador diário continua diminuindo normalmente.
 
-ETAPA 6.1.1 — PRIORIDADE EDITORIAL E DUPLICIDADES
+ETAPA 6.1.1b — PRIORIDADE EDITORIAL E DUPLICIDADES
 - O ranking anterior foi substituído por Prioridade Editorial.
 - A prioridade considera geografia, impacto, urgência, utilidade pública, atualidade e potencial de reportagem local.
 - Política protocolar, institucional, celebridades e conteúdo nacional/internacional sem impacto local são rebaixados.
 - Pautas equivalentes de portais diferentes são consolidadas em um único resultado, preservando todas as fontes.
 - A classificação visual e os blocos editoriais ficam para a Etapa 6.1.2.
 - Não há nova migração SQL nesta etapa.
+
+CORREÇÃO 6.1.1b
+- Deduplicação por evento, entidades, local e âncoras específicas.
+- Penalização de retrospectivas que mencionam fatos antigos.
+- Mortes, crimes graves, emergências e serviços de amplo alcance recebem maior prioridade.
+- Política protocolar, conteúdo promocional e páginas que não são notícias recebem forte redução ou são removidas.
+- Não exige alteração no Supabase.
