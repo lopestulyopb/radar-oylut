@@ -1,21 +1,24 @@
-RADAR OYLUT — ETAPA 5: ASSINATURAS
+RADAR OYLUT — VERSÃO 6.1.1
 
-1. Execute supabase_fase_usuarios.sql no SQL Editor do Supabase.
-2. Substitua no GitHub os arquivos da pasta app e o SQL desta entrega.
-3. Novos usuários começam automaticamente com subscription_status = pending.
-4. Para liberar um usuário manualmente, execute no Supabase:
+Esta atualização mantém a Etapa 5 (assinaturas) e implementa a primeira parte da Etapa 6.1.
 
-update public.profiles
-set subscription_status = 'active',
-    subscription_expires_at = now() + interval '30 days'
-where email = 'EMAIL_DO_USUARIO';
+IMPLEMENTADO NA 6.1.1
+- Novo algoritmo de Prioridade Editorial, voltado para telejornal popular da Paraíba.
+- João Pessoa, Região Metropolitana, Campina Grande e interior da Paraíba recebem maior prioridade.
+- Segurança, crimes, mortes, acidentes, trânsito, operações, apreensões e prisões recebem maior prioridade.
+- Serviço, saúde, educação e economia são organizados conforme o impacto ao público.
+- Política protocolar, conteúdo institucional, celebridades e conteúdo sem relação com a Paraíba perdem prioridade.
+- Conteúdo nacional só permanece quando envolve a Paraíba ou possui impacto amplo para o país.
+- Conteúdo claramente de outros estados é removido da pesquisa local.
+- Duplicidades são consolidadas em um único fato.
+- Todas as fontes da mesma pauta permanecem reunidas no mesmo card.
+- O melhor título e o melhor resumo são escolhidos na consolidação.
 
-5. Status disponíveis:
-   pending  = Aguardando ativação
-   active   = Ativa
-   expired  = Expirada
-   inactive = Inativa
+AINDA NÃO IMPLEMENTADO (6.1.2)
+- Classificação visual: Urgente, Muito Relevante, Serviço, Institucional, Política e Geral.
+- Separação dos resultados em blocos editoriais.
 
-6. Usuários sem assinatura ativa continuam acessando Minha Conta, mas não conseguem executar consultas.
-7. Minha Conta exibe plano, status, validade, uso diário e consultas restantes.
-8. No Render, mantenha SUPABASE_URL, SUPABASE_ANON_KEY, COOKIE_SECURE=true e SITE_URL configurados.
+PUBLICAÇÃO
+Substitua no GitHub os arquivos/pastas presentes neste pacote, preservando os demais arquivos do repositório que não aparecem no ZIP, especialmente os coletores/scrapers e arquivos de deploy.
+
+Não é necessário executar novo SQL no Supabase para esta versão.

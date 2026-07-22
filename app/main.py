@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.collector import collect_news
+from app.editorial import consolidate_news
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
@@ -50,7 +51,7 @@ def normalize_subscription(profile: dict) -> dict:
 app = FastAPI(
     title="Radar Oylut",
     description="Radar jornalístico protegido por login.",
-    version="5.6.0",
+    version="6.1.1",
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -494,7 +495,7 @@ async def sair():
 
 @app.get("/saude")
 def saude():
-    return {"status": "ok", "versao": "5.6.0"}
+    return {"status": "ok", "versao": "6.1.1"}
 
 
 @app.get("/radar", operation_id="buscarNoticiasRecentes")
@@ -527,6 +528,7 @@ async def radar(
 
     try:
         noticias = await collect_news(hours=horas, editoria=editoria)
+        noticias = consolidate_news(noticias)
     except Exception:
         return JSONResponse({"detail": "Não foi possível executar o Radar agora."}, status_code=503)
 
