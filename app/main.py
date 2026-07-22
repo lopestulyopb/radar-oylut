@@ -1,4 +1,6 @@
+import logging
 import os
+from datetime import date
 from typing import Any
 from urllib.parse import quote
 
@@ -16,10 +18,13 @@ SITE_URL = os.getenv("SITE_URL", "https://radar-oylut.onrender.com").rstrip("/")
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
 DAILY_LIMIT = 18
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("radar-oylut")
+
 app = FastAPI(
     title="Radar Oylut",
     description="Radar jornalístico protegido por login.",
-    version="5.5.0",
+    version="5.5.1",
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -131,49 +136,94 @@ async def get_profile(access_token: str, user_id: str) -> dict:
                 "limit": "1",
             },
         )
+
     if response.status_code != 200:
+        logger.warning(
+            "Falha ao consultar perfil no Supabase: status=%s body=%s",
+            response.status_code,
+            response.text[:300],
+        )
         return {}
+
     rows = response.json()
     return rows[0] if rows else {}
 
 
 async def get_daily_usage(access_token: str, user_id: str) -> int:
     async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.get(
-            f"{SUPABASE_URL}/rest/v1/daily_usage",
-            headers=supabase_headers(access_token),
-            params={
-                "user_id": f"eq.{user_id}",
-                "usage_date": "eq." + __import__("datetime").date.today().isoformat(),
-                "select": "queries_used",
-                "limit": "1",
-            },
-        )
+        try:
+            response = await client.get(
+                f"{SUPABASE_URL}/rest/v1/daily_usage",
+                headers=supabase_headers(access_token),
+                params={
+                    "user_id": f"eq.{user_id}",
+                    "usage_date": f"eq.{date.today().isoformat()}",
+                    "select": "queries_used",
+                    "limit": "1",
+                },
+            )
+        except httpx.HTTPError as error:
+            logger.exception("Falha de conexão ao consultar uso diário: %s", error)
+            return 0
+
     if response.status_code != 200:
+        logger.warning(
+            "Falha ao consultar uso diário: status=%s body=%s",
+            response.status_code,
+            response.text[:300],
+        )
         return 0
+
     rows = response.json()
     return int(rows[0].get("queries_used", 0)) if rows else 0
 
 
 async def consume_daily_query(access_token: str) -> dict:
     async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.post(
-            f"{SUPABASE_URL}/rest/v1/rpc/consume_daily_query",
-            headers={
-                **supabase_headers(access_token),
-                "Prefer": "return=representation",
-            },
-            json={"p_limit": DAILY_LIMIT},
-        )
+        try:
+            response = await client.post(
+                f"{SUPABASE_URL}/rest/v1/rpc/consume_daily_query",
+                headers={
+                    **supabase_headers(access_token),
+                    "Prefer": "return=representation",
+                },
+                json={"p_limit": DAILY_LIMIT},
+            )
+        except httpx.HTTPError as error:
+            logger.exception("Falha de conexão ao registrar uso diário: %s", error)
+            return {
+                "ok": False,
+                "error": "Falha de conexão com o controle de uso diário.",
+            }
+
     if response.status_code != 200:
-        return {"allowed": False, "used": DAILY_LIMIT, "remaining": 0}
-    payload = response.json()
+        logger.error(
+            "Supabase recusou o registro de uso diário: status=%s body=%s",
+            response.status_code,
+            response.text[:500],
+        )
+        return {
+            "ok": False,
+            "error": "O Supabase não conseguiu registrar a consulta.",
+        }
+
+    try:
+        payload = response.json()
+    except ValueError:
+        logger.error("Resposta inválida do Supabase ao registrar uso: %s", response.text[:500])
+        return {
+            "ok": False,
+            "error": "O Supabase retornou uma resposta inválida.",
+        }
+
     if isinstance(payload, list):
         payload = payload[0] if payload else {}
+
     return {
+        "ok": True,
         "allowed": bool(payload.get("allowed", False)),
-        "used": int(payload.get("used", DAILY_LIMIT)),
-        "remaining": int(payload.get("remaining", 0)),
+        "used": int(payload.get("used", 0)),
+        "remaining": int(payload.get("remaining", DAILY_LIMIT)),
     }
 
 
@@ -222,7 +272,11 @@ async def login(request: Request, email: str = Form(...), senha: str = Form(...)
         return templates.TemplateResponse(
             request=request,
             name="login.html",
-            context={"erro": "Configuração do Supabase ausente no servidor.", "mensagem": None, "email": email},
+            context={
+                "erro": "Configuração do Supabase ausente no servidor.",
+                "mensagem": None,
+                "email": email,
+            },
             status_code=500,
         )
 
@@ -237,7 +291,11 @@ async def login(request: Request, email: str = Form(...), senha: str = Form(...)
         return templates.TemplateResponse(
             request=request,
             name="login.html",
-            context={"erro": "Não foi possível conectar ao serviço de autenticação.", "mensagem": None, "email": email},
+            context={
+                "erro": "Não foi possível conectar ao serviço de autenticação.",
+                "mensagem": None,
+                "email": email,
+            },
             status_code=503,
         )
 
@@ -245,7 +303,11 @@ async def login(request: Request, email: str = Form(...), senha: str = Form(...)
         return templates.TemplateResponse(
             request=request,
             name="login.html",
-            context={"erro": "E-mail ou senha inválidos.", "mensagem": None, "email": email},
+            context={
+                "erro": "E-mail ou senha inválidos.",
+                "mensagem": None,
+                "email": email,
+            },
             status_code=401,
         )
 
@@ -290,7 +352,12 @@ async def cadastro(
         context["erro"] = "A senha precisa ter pelo menos 8 caracteres."
 
     if context["erro"]:
-        return templates.TemplateResponse(request=request, name="cadastro.html", context=context, status_code=400)
+        return templates.TemplateResponse(
+            request=request,
+            name="cadastro.html",
+            context=context,
+            status_code=400,
+        )
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -305,7 +372,12 @@ async def cadastro(
             )
     except httpx.HTTPError:
         context["erro"] = "Não foi possível conectar ao serviço de cadastro."
-        return templates.TemplateResponse(request=request, name="cadastro.html", context=context, status_code=503)
+        return templates.TemplateResponse(
+            request=request,
+            name="cadastro.html",
+            context=context,
+            status_code=503,
+        )
 
     try:
         signup_data = signup_response.json()
@@ -313,12 +385,24 @@ async def cadastro(
         signup_data = {}
 
     if signup_response.status_code not in (200, 201):
-        context["erro"] = friendly_auth_error(signup_data, "Não foi possível criar sua conta.")
-        return templates.TemplateResponse(request=request, name="cadastro.html", context=context, status_code=400)
+        context["erro"] = friendly_auth_error(
+            signup_data,
+            "Não foi possível criar sua conta.",
+        )
+        return templates.TemplateResponse(
+            request=request,
+            name="cadastro.html",
+            context=context,
+            status_code=400,
+        )
 
     if signup_data.get("access_token") and signup_data.get("refresh_token"):
         response = RedirectResponse("/", status_code=303)
-        set_auth_cookies(response, signup_data["access_token"], signup_data["refresh_token"])
+        set_auth_cookies(
+            response,
+            signup_data["access_token"],
+            signup_data["refresh_token"],
+        )
         return response
 
     mensagem = quote("Cadastro realizado. Verifique seu e-mail para confirmar a conta.")
@@ -349,7 +433,11 @@ async def esqueci_senha(request: Request, email: str = Form(...)):
         return templates.TemplateResponse(
             request=request,
             name="esqueci-senha.html",
-            context={"erro": "Não foi possível solicitar a recuperação agora.", "mensagem": None, "email": email},
+            context={
+                "erro": "Não foi possível solicitar a recuperação agora.",
+                "mensagem": None,
+                "email": email,
+            },
             status_code=503,
         )
 
@@ -357,7 +445,11 @@ async def esqueci_senha(request: Request, email: str = Form(...)):
         return templates.TemplateResponse(
             request=request,
             name="esqueci-senha.html",
-            context={"erro": "Não foi possível enviar o link de recuperação.", "mensagem": None, "email": email},
+            context={
+                "erro": "Não foi possível enviar o link de recuperação.",
+                "mensagem": None,
+                "email": email,
+            },
             status_code=400,
         )
 
@@ -374,7 +466,11 @@ async def esqueci_senha(request: Request, email: str = Form(...)):
 
 @app.get("/redefinir-senha", response_class=HTMLResponse)
 async def redefinir_senha_page(request: Request):
-    return templates.TemplateResponse(request=request, name="redefinir-senha.html", context={"erro": None})
+    return templates.TemplateResponse(
+        request=request,
+        name="redefinir-senha.html",
+        context={"erro": None},
+    )
 
 
 @app.post("/redefinir-senha", response_class=HTMLResponse)
@@ -435,7 +531,9 @@ async def minha_conta(request: Request):
         request=request,
         name="minha-conta.html",
         context={
-            "nome": profile.get("name") or user.get("user_metadata", {}).get("name") or "",
+            "nome": profile.get("name")
+            or user.get("user_metadata", {}).get("name")
+            or "",
             "email": profile.get("email") or user.get("email", ""),
             "subscription_status": profile.get("subscription_status") or "pendente",
             "subscription_expires_at": profile.get("subscription_expires_at"),
@@ -458,14 +556,17 @@ async def sair():
 
 @app.get("/saude")
 def saude():
-    return {"status": "ok", "versao": "5.5.0"}
+    return {"status": "ok", "versao": "5.5.1"}
 
 
 @app.get("/radar", operation_id="buscarNoticiasRecentes")
 async def radar(
     request: Request,
     horas: int = Query(default=24, ge=1, le=24),
-    editoria: str = Query(default="todas", pattern="^(todas|seguranca|servico|esportes|politica|geral)$"),
+    editoria: str = Query(
+        default="todas",
+        pattern="^(todas|seguranca|servico|esportes|politica|geral)$",
+    ),
 ):
     user, refreshed, access_token = await validate_or_refresh_session(request)
     if not user or not access_token:
@@ -474,30 +575,62 @@ async def radar(
     used_before = await get_daily_usage(access_token, user["id"])
     if used_before >= DAILY_LIMIT:
         return JSONResponse(
-            {"detail": "Limite diário atingido.", "used": used_before, "remaining": 0, "limit": DAILY_LIMIT},
+            {
+                "detail": "Limite diário atingido.",
+                "used": used_before,
+                "remaining": 0,
+                "limit": DAILY_LIMIT,
+            },
             status_code=429,
         )
 
     try:
         noticias = await collect_news(hours=horas, editoria=editoria)
     except Exception:
-        return JSONResponse({"detail": "Não foi possível executar o Radar agora."}, status_code=503)
+        logger.exception("Falha ao executar o coletor do Radar.")
+        return JSONResponse(
+            {"detail": "Não foi possível executar o Radar agora."},
+            status_code=503,
+        )
 
     consumption = await consume_daily_query(access_token)
+
+    if not consumption.get("ok"):
+        logger.error(
+            "Notícias coletadas, mas uso diário não registrado: %s",
+            consumption.get("error"),
+        )
+        return JSONResponse(
+            {
+                "detail": (
+                    "As notícias foram encontradas, mas não foi possível "
+                    "registrar a consulta. Tente novamente."
+                )
+            },
+            status_code=503,
+        )
+
     if not consumption["allowed"]:
         return JSONResponse(
-            {"detail": "Limite diário atingido.", "used": consumption["used"], "remaining": 0, "limit": DAILY_LIMIT},
+            {
+                "detail": "Limite diário atingido.",
+                "used": consumption["used"],
+                "remaining": 0,
+                "limit": DAILY_LIMIT,
+            },
             status_code=429,
         )
 
-    response = JSONResponse({
-        "noticias": noticias,
-        "usage": {
-            "used": consumption["used"],
-            "remaining": consumption["remaining"],
-            "limit": DAILY_LIMIT,
-        },
-    })
+    response = JSONResponse(
+        {
+            "noticias": noticias,
+            "usage": {
+                "used": consumption["used"],
+                "remaining": consumption["remaining"],
+                "limit": DAILY_LIMIT,
+            },
+        }
+    )
     if refreshed:
         set_auth_cookies(response, *refreshed)
     return response
