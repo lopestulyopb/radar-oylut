@@ -51,7 +51,7 @@ def normalize_subscription(profile: dict) -> dict:
 app = FastAPI(
     title="Radar Oylut",
     description="Radar jornalístico protegido por login.",
-    version="6.1.1b",
+    version="6.1.2",
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -495,7 +495,7 @@ async def sair():
 
 @app.get("/saude")
 def saude():
-    return {"status": "ok", "versao": "6.1.1"}
+    return {"status": "ok", "versao": "6.1.2"}
 
 
 @app.get("/radar", operation_id="buscarNoticiasRecentes")
@@ -503,6 +503,7 @@ async def radar(
     request: Request,
     horas: int = Query(default=24, ge=1, le=24),
     editoria: str = Query(default="todas", pattern="^(todas|seguranca|servico|esportes|politica|geral)$"),
+    ordenar: str = Query(default="editor_chefe", pattern="^(editor_chefe|recentes)$"),
 ):
     user, refreshed, access_token = await validate_or_refresh_session(request)
     if not user or not access_token:
@@ -528,7 +529,7 @@ async def radar(
 
     try:
         noticias_coletadas = await collect_news(hours=horas, editoria=editoria)
-        noticias = consolidate_and_rank(noticias_coletadas)
+        noticias = consolidate_and_rank(noticias_coletadas, order=ordenar)
     except Exception:
         return JSONResponse({"detail": "Não foi possível executar o Radar agora."}, status_code=503)
 
@@ -541,6 +542,7 @@ async def radar(
 
     response = JSONResponse({
         "noticias": noticias,
+        "ordenacao": ordenar,
         "usage": {
             "used": consumption["used"],
             "remaining": consumption["remaining"],

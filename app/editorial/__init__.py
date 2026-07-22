@@ -5,7 +5,7 @@ Responsabilidades desta etapa:
 - consolidar pautas equivalentes, mesmo quando os títulos usam palavras diferentes;
 - filtrar páginas que não são notícias.
 
-A classificação visual por Urgente, Serviço, Política etc. permanece para a 6.1.2.
+Inclui classificação editorial e ordenação Editor-Chefe ou cronológica.
 """
 from __future__ import annotations
 
@@ -287,6 +287,89 @@ def editorial_priority(item: dict[str, Any], now: datetime | None = None) -> flo
     return round(score, 2)
 
 
+
+CLASS_ORDER = {
+    "urgente": 6,
+    "muito_relevante": 5,
+    "servico": 4,
+    "institucional": 3,
+    "politica": 2,
+    "geral": 1,
+}
+
+CLASS_LABELS = {
+    "urgente": "Urgente",
+    "muito_relevante": "Muito relevante",
+    "servico": "Serviço",
+    "institucional": "Institucional",
+    "politica": "Política",
+    "geral": "Geral",
+}
+
+CRITICAL_SERVICE_TERMS = (
+    "vacinacao", "vacina", "surto", "alerta", "emergencia", "falta de agua",
+    "falta de energia", "abastecimento", "interdicao", "bloqueio", "transito",
+    "chuva forte", "alagamento", "evacuacao", "entrega de alimentos",
+)
+
+OPPORTUNITY_SERVICE_TERMS = (
+    "vagas", "selecao", "concurso", "inscricao", "inscricoes", "curso",
+    "matricula", "castracao", "premio professor", "desconto", "convenio",
+)
+
+INSTITUTIONAL_TERMS = (
+    "prefeitura", "governo da paraiba", "governador", "secretaria", "fiep",
+    "sindojus", "universidade", "uniesp", "uninassau", "unimed",
+)
+
+GRAVE_EVENT_TERMS = (
+    "morte", "morto a tiros", "feminicidio", "chacina", "refem", "sequestro",
+    "estupro", "assalto", "roubo", "presa as ferragens", "afogamento",
+    "resgatam adolescente", "resgate no mar", "incendio", "explosao",
+)
+
+HIGH_RELEVANCE_TERMS = (
+    "operacao", "prisao", "mandado", "trafico", "moeda_falsa", "arma",
+    "drogas", "acidente", "atropel", "colisao", "embargadas", "poluicao",
+    "esgoto", "tce", "contas irregulares", "decisao judicial",
+)
+
+
+def classify_editorial(item: dict[str, Any]) -> tuple[str, str, int]:
+    """Classifica a pauta antes da ordenação, como uma mesa de edição."""
+    title = normalize_text(_title(item))
+    text = normalize_text(f"{_title(item)} {_summary(item)} {item.get('editoria_interna', '')}")
+
+    is_retrospective = _contains(text, RETROSPECTIVE_TERMS)
+    is_politics = _contains(text, (
+        "prefeito", "governador", "deputado", "senador", "vereador", "politica",
+        "assembleia", "camara municipal", "partido", "chapa", "eleicoes",
+    ))
+    high_impact_politics = _contains(text, HIGH_IMPACT_POLITICS)
+    routine_institutional = _contains(text, ROUTINE_POLITICS) or _contains(text, COMMERCIAL_TERMS)
+
+    if _contains(text, GRAVE_EVENT_TERMS) and not is_retrospective:
+        return "urgente", CLASS_LABELS["urgente"], CLASS_ORDER["urgente"]
+
+    if _contains(text, CRITICAL_SERVICE_TERMS):
+        return "muito_relevante", CLASS_LABELS["muito_relevante"], CLASS_ORDER["muito_relevante"]
+
+    if _contains(text, HIGH_RELEVANCE_TERMS) or (is_politics and high_impact_politics):
+        return "muito_relevante", CLASS_LABELS["muito_relevante"], CLASS_ORDER["muito_relevante"]
+
+    if _contains(text, OPPORTUNITY_SERVICE_TERMS):
+        return "servico", CLASS_LABELS["servico"], CLASS_ORDER["servico"]
+
+    if is_politics:
+        if routine_institutional or _contains(text, PROMOTIONAL_POLITICS):
+            return "institucional", CLASS_LABELS["institucional"], CLASS_ORDER["institucional"]
+        return "politica", CLASS_LABELS["politica"], CLASS_ORDER["politica"]
+
+    if routine_institutional or (_contains(text, INSTITUTIONAL_TERMS) and _contains(text, ("parceria", "acompanha", "destaca", "celebra", "discute"))):
+        return "institucional", CLASS_LABELS["institucional"], CLASS_ORDER["institucional"]
+
+    return "geral", CLASS_LABELS["geral"], CLASS_ORDER["geral"]
+
 def calculate_relevance(title: str, summary: str, editoria: str, published_at: Any) -> float:
     return editorial_priority({"titulo": title, "resumo": summary, "editoria_interna": editoria, "publicado_em": published_at})
 
@@ -352,9 +435,11 @@ def _same_story(left: dict[str, Any], right: dict[str, Any]) -> bool:
         return True
     if containment >= 0.72 and len(common) >= 5:
         return True
-    if shared_anchors and containment >= 0.46 and len(common) >= 3:
+    generic_anchors = {"joao_pessoa", "campina_grande", "bayeux", "cabedelo", "alhandra", "rio", "litoral"}
+    specific_shared = shared_anchors - generic_anchors
+    if specific_shared and containment >= 0.50 and len(common) >= 4:
         return True
-    if len(shared_anchors) >= 2 and len(common) >= 2:
+    if len(specific_shared) >= 2 and len(common) >= 3:
         return True
     return False
 
@@ -384,16 +469,21 @@ def _merge_cluster(cluster: list[dict[str, Any]]) -> dict[str, Any]:
     dated = [(item, dt) for item, dt in dated if dt]
     newest_value = _published(max(dated, key=lambda pair: pair[1])[0]) if dated else None
 
-    return {
+    merged = {
         "titulo": _title(best_title),
         "resumo": _summary(best_summary) or "Resumo não disponível na fonte.",
         "publicado_em": newest_value,
         "fontes": sources,
         "prioridade_editorial": max(editorial_priority(item) for item in cluster),
     }
+    class_key, class_label, class_order = classify_editorial(merged)
+    merged["classificacao_editorial"] = class_key
+    merged["classificacao_label"] = class_label
+    merged["classe_ordem"] = class_order
+    return merged
 
 
-def consolidate_and_rank(news: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+def consolidate_and_rank(news: list[dict[str, Any]] | None, order: str = "editor_chefe") -> list[dict[str, Any]]:
     valid = []
     for item in news or []:
         if not isinstance(item, dict) or not _title(item):
@@ -412,11 +502,18 @@ def consolidate_and_rank(news: list[dict[str, Any]] | None) -> list[dict[str, An
             cluster.append(item)
 
     consolidated = [_merge_cluster(cluster) for cluster in clusters]
-    consolidated.sort(
-        key=lambda item: (
-            item["prioridade_editorial"],
-            _parse_datetime(item.get("publicado_em")) or datetime.min.replace(tzinfo=timezone.utc),
-        ),
-        reverse=True,
-    )
+    if order == "recentes":
+        consolidated.sort(
+            key=lambda item: _parse_datetime(item.get("publicado_em")) or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+    else:
+        consolidated.sort(
+            key=lambda item: (
+                item.get("classe_ordem", 0),
+                item["prioridade_editorial"],
+                _parse_datetime(item.get("publicado_em")) or datetime.min.replace(tzinfo=timezone.utc),
+            ),
+            reverse=True,
+        )
     return consolidated

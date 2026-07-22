@@ -37,3 +37,11 @@ uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ## Sprint 4.1
 
 Fontes ativas: ClickPB, Jornal da Paraíba, MaisPB e Polêmica Paraíba. Patos Online e Diário do Sertão foram removidos para reduzir ruído, volume e tempo de processamento.
+
+
+## Etapa 6.1.2
+- Classificação editorial automática.
+- Ordenação padrão Editor-Chefe.
+- Ordenação alternativa Mais recentes.
+- Serviço crítico separado de serviço de oportunidade.
+- Deduplicação mais conservadora para não unir pautas apenas pela localização.

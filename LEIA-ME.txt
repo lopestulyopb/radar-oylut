@@ -59,3 +59,11 @@ CORREÇÃO 6.1.1b
 - Mortes, crimes graves, emergências e serviços de amplo alcance recebem maior prioridade.
 - Política protocolar, conteúdo promocional e páginas que não são notícias recebem forte redução ou são removidas.
 - Não exige alteração no Supabase.
+
+
+## Etapa 6.1.2
+- Classificação editorial automática.
+- Ordenação padrão Editor-Chefe.
+- Ordenação alternativa Mais recentes.
+- Serviço crítico separado de serviço de oportunidade.
+- Deduplicação mais conservadora para não unir pautas apenas pela localização.
