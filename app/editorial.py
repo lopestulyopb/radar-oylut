@@ -40,8 +40,8 @@ _EVENT_GROUPS = {
 
 EDITORIA_ORDER = {
     "policial": 0, "servico": 1, "saude": 2, "educacao": 3, "economia": 4,
-    "esportes": 5, "cultura": 6, "meio_ambiente": 7, "politica": 8,
-    "justica": 9, "institucional": 10, "geral": 11,
+    "justica": 5, "esportes": 6, "cultura": 7, "meio_ambiente": 8,
+    "institucional": 9, "geral": 10, "politica": 11,
 }
 
 
