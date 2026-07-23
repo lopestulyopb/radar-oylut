@@ -16,14 +16,21 @@
     <div class="sidebar-section"><p class="sidebar-label">Conta</p><a class="sidebar-link" href="/minha-conta">Minha Conta</a></div>
     <div class="sidebar-section">
       <p class="sidebar-label">Filtrar por editoria</p>
-      <div class="editoria-options" role="radiogroup" aria-label="Escolha a editoria">
-        <label><input type="radio" name="editoria" value="todas" checked><span>Todas as editorias</span></label>
-        <label><input type="radio" name="editoria" value="seguranca"><span>Segurança e trânsito</span></label>
-        <label><input type="radio" name="editoria" value="servico"><span>Serviço, saúde e educação</span></label>
-        <label><input type="radio" name="editoria" value="esportes"><span>Esportes</span></label>
-        <label><input type="radio" name="editoria" value="politica"><span>Política e Justiça</span></label>
-        <label><input type="radio" name="editoria" value="geral"><span>Geral e entretenimento</span></label>
+      <div class="editoria-options" role="group" aria-label="Escolha uma ou mais editorias">
+        <label><input type="checkbox" name="editoria" value="policial"><span>Policial</span></label>
+        <label><input type="checkbox" name="editoria" value="servico"><span>Serviço</span></label>
+        <label><input type="checkbox" name="editoria" value="saude"><span>Saúde</span></label>
+        <label><input type="checkbox" name="editoria" value="educacao"><span>Educação</span></label>
+        <label><input type="checkbox" name="editoria" value="economia"><span>Economia</span></label>
+        <label><input type="checkbox" name="editoria" value="geral"><span>Geral</span></label>
+        <label><input type="checkbox" name="editoria" value="esportes"><span>Esportes</span></label>
+        <label><input type="checkbox" name="editoria" value="cultura"><span>Cultura</span></label>
+        <label><input type="checkbox" name="editoria" value="meio_ambiente"><span>Meio Ambiente</span></label>
+        <label><input type="checkbox" name="editoria" value="politica"><span>Política</span></label>
+        <label><input type="checkbox" name="editoria" value="justica"><span>Justiça</span></label>
+        <label><input type="checkbox" name="editoria" value="institucional"><span>Institucional</span></label>
       </div>
+      <p class="field-help">Nenhuma marcada exibe todas as editorias.</p>
     </div>
   </aside>
   <header class="topbar">
@@ -33,7 +40,7 @@
   <main class="radar-shell">
     <div class="user-line"><p class="user">Acesso: {{ email }}</p><p id="usageCounter" class="usage-counter" data-used="{{ consultas_usadas }}" data-limit="{{ limite_diario }}">{{ consultas_restantes }} consulta(s) restante(s) hoje</p></div>
     <section class="control-panel">
-      <div class="selection-summary"><div><h2>Período das notícias</h2><p id="editoriaAtual" class="active-filter">Editoria: Todas as editorias</p></div></div>
+      <div class="selection-summary"><div><h2>Período das notícias</h2><p id="editoriaAtual" class="active-filter">Editorias: Todas</p></div></div>
       <div class="periods" role="radiogroup" aria-label="Escolha o período">{% for hora in [1, 2, 6, 12, 24] %}<label><input type="radio" name="horas" value="{{ hora }}" {% if hora == 24 %}checked{% endif %}><span>{{ hora }}h</span></label>{% endfor %}</div>
       <div class="order-control">
         <span class="order-title">Ordenar por</span>
