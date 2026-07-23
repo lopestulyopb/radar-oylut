@@ -1,0 +1,13 @@
+.sidebar{
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+
+.sidebar-header{
+  position:sticky;
+  top:0;
+  z-index:2;
+  background:#12151a;
+}
