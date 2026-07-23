@@ -15,14 +15,9 @@ const EDITORIA_LABELS={
   geral:'Geral',esportes:'Esportes',cultura:'Cultura',meio_ambiente:'Meio Ambiente',
   politica:'Política',justica:'Justiça',institucional:'Institucional'
 };
-
-// A ordem dos blocos é fixa. Policial sempre abre o resultado.
-const EDITORIA_ORDER={
-  policial:0,servico:1,saude:2,educacao:3,economia:4,esportes:5,cultura:6,
-  meio_ambiente:7,politica:8,justica:9,institucional:10,geral:11
-};
-
+const EDITORIA_ORDER={policial:0,servico:1,saude:2,educacao:3,economia:4,esportes:5,cultura:6,meio_ambiente:7,politica:8,justica:9,institucional:10,geral:11};
 const ORDER_LABELS={editor_chefe:'Padrão',recentes:'Mais recentes dentro de cada editoria'};
+
 const PUBLIC_PERSON_TERMS=['ator','atriz','cantor','cantora','artista','cineasta','diretor','diretora','jornalista','reporter','apresentador','apresentadora','influenciador','influenciadora','empresario','empresaria','escritor','escritora','prefeito','ex-prefeito','governador','deputado','senador','vereador','politico','jogador','ex-jogador','esportista'];
 const VIOLENT_DEATH_TERMS=['morto a tiros','morta a tiros','assassinado','assassinada','homicidio','feminicidio','latrocinio','chacina','corpo encontrado','morte violenta','morte suspeita'];
 const POLICE_TERMS=['homicidio','feminicidio','latrocinio','chacina','assalto','roubo','furto','receptacao','trafico','drogas','arma','municoes','prisao','preso','presa','mandado','operacao policial','policia civil','policia militar','organizacao criminosa','faccao','sequestro','refem','estupro','atos obscenos','violencia domestica','golpe','fraude','desaparecido','desaparecida','acidente','atropelamento','colisao','capotamento','afogamento','incendio','explosao'];
@@ -50,23 +45,22 @@ function itemText(item){return normalizedText(`${item.titulo||''} ${item.resumo|
 function isPublicPersonDeath(text){return containsAny(text,['morre','morreu','morte','luto','falecimento'])&&containsAny(text,PUBLIC_PERSON_TERMS)&&!containsAny(text,VIOLENT_DEATH_TERMS)}
 function isViolenceStatistics(text){return containsAny(text,STATISTICS_TERMS)&&containsAny(text,['violencia','crime','furto','roubo','homicidio','mortes violentas','cidade mais violenta'])}
 
-// Classificação contextual: primeiro identifica exceções, depois o tema principal.
 function normalizedEditorial(item){
   const text=itemText(item);
   const original=item.classificacao_editorial||'geral';
 
   if(isPublicPersonDeath(text)||isViolenceStatistics(text))return'geral';
   if(containsAny(text,['homenageia','homenagem','reconhecimento institucional','solenidade','recebe titulo','entrega medalha']))return'institucional';
-  if(containsAny(text,['tse','stf','stj','tribunal','justica','juiz','juiza','sentenca','decisao judicial','acao judicial','aciona o','ministerio publico','mppb','mpf','condenacao','processo judicial']))return'justica';
+  if(containsAny(text,['alerta de chuva','chuvas intensas','alerta amarelo','alerta laranja','inmet','falta de agua','falta de energia','abastecimento','interdicao','inscricoes abertas','cadastro','refis','renegociacao de dividas','vagas','concurso','curso gratuito','bolsa familia','calendario de pagamento']))return'servico';
+  if(containsAny(text,['poluicao','esgoto','desmatamento','meio ambiente','ambiental','area de preservacao','fauna','flora','rios que desaguam','lancamento irregular']))return'meio_ambiente';
+  if(containsAny(text,['cultura','festival','show','musica','teatro','cinema','cineasta','livro','exposicao','sabadinho bom','lancamento de anatomia']))return'cultura';
   if(containsAny(text,['plano de saude','tea','autismo','vacina','vacinacao','hospital','doenca','surto','medicamento','atendimento medico','sus']))return'saude';
   if(containsAny(text,['estudante','estagio','escola','educacao','universidade','faculdade','enem','professor','aluno','matricula escolar','sindrome de down']))return'educacao';
-  if(containsAny(text,['alerta de chuva','chuvas intensas','alerta amarelo','alerta laranja','inmet','falta de agua','falta de energia','abastecimento','interdicao','inscricoes abertas','cadastro','refis','renegociacao de dividas','vagas','concurso','curso gratuito']))return'servico';
-  if(containsAny(text,POLICE_TERMS)||original==='seguranca'||original==='policial')return'policial';
-  if(containsAny(text,['poluicao','esgoto','desmatamento','meio ambiente','ambiental','area de preservacao','fauna','flora']))return'meio_ambiente';
+  if(containsAny(text,['partido','eleicao','eleicoes','candidato','candidata','pre-candidato','pre candidata','chapa','vice','apoio politico','deputado','senador','vereador','governador','prefeito','exonera secretario','pesquisa eleitoral','votos em campina']))return'politica';
+  if(containsAny(text,['tse','stf','stj','tribunal','justica','juiz','juiza','sentenca','decisao judicial','acao judicial','aciona o','ministerio publico','mppb','mpf','condenacao','processo judicial','pericia em investimentos']))return'justica';
+  if(containsAny(text,['futebol','campeonato','torneio','botafogo-pb','botafogo pb','treze','campinense','volei','basquete','selecao brasileira']))return'esportes';
   if(containsAny(text,['economia','emprego','salario','preco','gasolina','inss','imposto','credito','comercio','industria']))return'economia';
-  if(containsAny(text,['futebol','campeonato','torneio','botafogo-pb','botafogo pb','treze','campinense','volei','basquete']))return'esportes';
-  if(containsAny(text,['cultura','festival','show','musica','teatro','cinema','livro','exposicao','sabadinho bom']))return'cultura';
-  if(containsAny(text,['partido','eleicao','eleicoes','candidato','candidata','pre-candidato','pre candidata','chapa','vice','apoio politico','deputado','senador','vereador','governador','prefeito']))return'politica';
+  if(containsAny(text,POLICE_TERMS)||original==='seguranca'||original==='policial')return'policial';
   return EDITORIA_ORDER[original]!==undefined?original:'geral';
 }
 
@@ -74,16 +68,7 @@ function editorialLabel(item){const key=normalizedEditorial(item);return EDITORI
 function filterNews(news){const selected=new Set(selectedEditorias());if(!selected.size)return news;return news.filter(item=>selected.has(normalizedEditorial(item)))}
 function publishedTime(item){const time=new Date(item.publicado_em||0).getTime();return Number.isNaN(time)?0:time}
 function priorityScore(item){const score=Number(item.prioridade_editorial||0);return Number.isFinite(score)?score:0}
-function groupAndOrder(news,order){
-  return [...news].sort((left,right)=>{
-    const leftEditorial=normalizedEditorial(left);
-    const rightEditorial=normalizedEditorial(right);
-    const groupDifference=(EDITORIA_ORDER[leftEditorial]??99)-(EDITORIA_ORDER[rightEditorial]??99);
-    if(groupDifference!==0)return groupDifference;
-    if(order==='recentes')return publishedTime(right)-publishedTime(left);
-    return priorityScore(right)-priorityScore(left)||publishedTime(right)-publishedTime(left);
-  });
-}
+function groupAndOrder(news,order){return [...news].sort((left,right)=>{const le=normalizedEditorial(left),re=normalizedEditorial(right);const gd=(EDITORIA_ORDER[le]??99)-(EDITORIA_ORDER[re]??99);if(gd!==0)return gd;if(order==='recentes')return publishedTime(right)-publishedTime(left);return priorityScore(right)-priorityScore(left)||publishedTime(right)-publishedTime(left)})}
 
 function renderSourceButtons(sources){const c=document.createElement('div');c.className='sources-list';(sources||[]).forEach(source=>{const link=document.createElement('a');link.href=source.link;link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label',`Abrir notícia no ${source.nome}`);link.append(source.nome,createText('span','external-icon','↗'));c.appendChild(link)});return c}
 function renderArticle(noticia,index){const article=document.createElement('article');article.className='news-card';const meta=document.createElement('div');meta.className='news-meta';meta.appendChild(createText('span','rank',`${index+1}`));const editorial=normalizedEditorial(noticia);meta.appendChild(createText('span',`editorial-badge badge-${editorial}`,editorialLabel(noticia)));const published=formatDate(noticia.publicado_em);if(published)meta.appendChild(createText('span','published',published));const actions=document.createElement('div');actions.className='card-actions';const copy=createText('button','copy-article secondary','Copiar notícia');copy.type='button';copy.addEventListener('click',()=>copyWithFeedback(articleText(noticia),copy,'Copiado ✓'));actions.appendChild(copy);article.append(meta,createText('h2','',noticia.titulo),createText('p','summary',noticia.resumo));article.appendChild(renderSourceButtons(noticia.fontes));article.appendChild(actions);return article}
