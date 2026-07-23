@@ -16,7 +16,7 @@ const EDITORIA_LABELS={
   politica:'Política',justica:'Justiça',institucional:'Institucional'
 };
 const EDITORIA_ORDER={policial:0,servico:1,saude:2,educacao:3,economia:4,justica:5,esportes:6,cultura:7,meio_ambiente:8,institucional:9,geral:10,politica:11};
-const ORDER_LABELS={editor_chefe:'Padrão',recentes:'Mais recentes dentro de cada editoria'};
+const ORDER_LABELS={editor_chefe:'Padrão',recentes:'Mais recentes'};
 
 function selectedEditorias(){return Array.from(document.querySelectorAll('input[name="editoria"]:checked')).map(input=>input.value)}
 function selectedOrder(){return document.querySelector('input[name="ordenar"]:checked')?.value||'editor_chefe'}
@@ -41,12 +41,28 @@ function editorialLabel(item){const key=normalizedEditorial(item);return EDITORI
 function filterNews(news){const selected=new Set(selectedEditorias());if(!selected.size)return news;return news.filter(item=>selected.has(normalizedEditorial(item)))}
 function publishedTime(item){const time=new Date(item.publicado_em||0).getTime();return Number.isNaN(time)?0:time}
 function priorityScore(item){const score=Number(item.prioridade_editorial||0);return Number.isFinite(score)?score:0}
-function groupAndOrder(news,order){return [...news].sort((left,right)=>{const le=normalizedEditorial(left),re=normalizedEditorial(right);const gd=(EDITORIA_ORDER[le]??99)-(EDITORIA_ORDER[re]??99);if(gd!==0)return gd;if(order==='recentes')return publishedTime(right)-publishedTime(left);return priorityScore(right)-priorityScore(left)||publishedTime(right)-publishedTime(left)})}
+function normalizedText(item){return String(`${item.titulo||''} ${item.resumo||''}`).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()}
+function journalisticWeight(item){
+  const text=normalizedText(item);
+  let score=priorityScore(item);
+  if(/homicidio|assassinato|feminicidio|morto a tiros|morta a tiros|tentativa de matar/.test(text))score+=90;
+  if(/policia|preso|presa|prisao|prende|prendeu|suspeito|foragido|operacao policial|mandado de prisao/.test(text))score+=75;
+  if(/trafico|drogas|arma|municao|roubo|furto|assalto|sequestro|estupro|atos obscenos|grupo criminoso/.test(text))score+=65;
+  if(/acidente|colisao|capotou|capotamento|atropelamento|incendio|explosao/.test(text))score+=50;
+  if(/alerta|inmet|chuvas intensas|interdicao|prazo|calendario|inscricoes/.test(text))score+=32;
+  return score;
+}
+function orderNews(news,order){return [...news].sort((left,right)=>{
+  const leftPolitics=normalizedEditorial(left)==='politica';
+  const rightPolitics=normalizedEditorial(right)==='politica';
+  if(leftPolitics!==rightPolitics)return leftPolitics?1:-1;
+  if(order==='recentes')return publishedTime(right)-publishedTime(left);
+  return journalisticWeight(right)-journalisticWeight(left)||publishedTime(right)-publishedTime(left);
+})}
 
 function renderSourceButtons(item){const c=document.createElement('div');c.className='sources-list';sortedSources(item).forEach(source=>{const name=source.nome||source.fonte||'Fonte';const url=source.link||source.url||'#';const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label',`Abrir notícia no ${name}`);link.append(name,createText('span','external-icon','↗'));c.appendChild(link)});return c}
 function renderArticle(noticia,index){const article=document.createElement('article');article.className='news-card';const meta=document.createElement('div');meta.className='news-meta';meta.appendChild(createText('span','rank',`${index+1}`));const editorial=normalizedEditorial(noticia);meta.appendChild(createText('span',`editorial-badge badge-${editorial}`,editorialLabel(noticia)));const published=formatDate(firstPublished(noticia));if(published)meta.appendChild(createText('span','published',published));const actions=document.createElement('div');actions.className='card-actions';const copy=createText('button','copy-article secondary','Copiar notícia');copy.type='button';copy.addEventListener('click',()=>copyWithFeedback(articleText(noticia),copy,'Copiado ✓'));actions.appendChild(copy);article.append(meta,createText('h2','',noticia.titulo),createText('p','summary',noticia.resumo));article.appendChild(renderSourceButtons(noticia));article.appendChild(actions);return article}
+function renderNews(news){const fragment=document.createDocumentFragment();news.forEach((noticia,index)=>fragment.appendChild(renderArticle(noticia,index)));return fragment}
 
-function renderGroupedNews(news){const fragment=document.createDocumentFragment();let currentEditorial='';let currentSection=null;news.forEach((noticia,index)=>{const editorial=normalizedEditorial(noticia);if(editorial!==currentEditorial||!currentSection){currentEditorial=editorial;currentSection=document.createElement('section');currentSection.className='editorial-section';currentSection.setAttribute('data-editoria',editorial);currentSection.appendChild(createText('h2','editorial-section-title',EDITORIA_LABELS[editorial]||'Geral'));fragment.appendChild(currentSection)}currentSection.appendChild(renderArticle(noticia,index))});return fragment}
-
-button.addEventListener('click',async()=>{const horas=document.querySelector('input[name="horas"]:checked')?.value||'24';const ordenar=selectedOrder();button.disabled=true;copyButton.hidden=true;currentNews=[];status.textContent=`Buscando fatos de ${selectedEditoriasLabel().toLowerCase()}...`;results.innerHTML='';try{const response=await fetch(`/radar?horas=${encodeURIComponent(horas)}&editoria=todas&ordenar=${encodeURIComponent(ordenar)}`);if(response.status===401){location.href='/login';return}const payload=await response.json();if(response.status===403){status.textContent=payload.detail||'Consulte sua assinatura em Minha Conta.';return}if(response.status===429){updateUsage({used:payload.used,remaining:payload.remaining,limit:payload.limit});status.textContent=payload.detail||'Limite diário atingido.';return}if(!response.ok)throw new Error(payload.detail||'Falha ao executar o Radar.');currentNews=groupAndOrder(filterNews(payload.noticias||[]),ordenar);updateUsage(payload.usage);status.textContent=`${currentNews.length} fato(s) encontrado(s). Fontes agrupadas em ordem alfabética.`;copyButton.hidden=currentNews.length===0;results.appendChild(renderGroupedNews(currentNews))}catch(error){status.textContent=error.message||'Não foi possível carregar as notícias.'}finally{const remaining=Number(usageCounter?.dataset.remaining??1);button.disabled=remaining<=0}});
+button.addEventListener('click',async()=>{const horas=document.querySelector('input[name="horas"]:checked')?.value||'24';const ordenar=selectedOrder();button.disabled=true;copyButton.hidden=true;currentNews=[];status.textContent=`Buscando fatos de ${selectedEditoriasLabel().toLowerCase()}...`;results.innerHTML='';try{const response=await fetch(`/radar?horas=${encodeURIComponent(horas)}&editoria=todas&ordenar=${encodeURIComponent(ordenar)}`);if(response.status===401){location.href='/login';return}const payload=await response.json();if(response.status===403){status.textContent=payload.detail||'Consulte sua assinatura em Minha Conta.';return}if(response.status===429){updateUsage({used:payload.used,remaining:payload.remaining,limit:payload.limit});status.textContent=payload.detail||'Limite diário atingido.';return}if(!response.ok)throw new Error(payload.detail||'Falha ao executar o Radar.');currentNews=orderNews(filterNews(payload.noticias||[]),ordenar);updateUsage(payload.usage);status.textContent=`${currentNews.length} fato(s) encontrado(s). Ordenados por peso jornalístico. Fontes agrupadas em ordem alfabética.`;copyButton.hidden=currentNews.length===0;results.appendChild(renderNews(currentNews))}catch(error){status.textContent=error.message||'Não foi possível carregar as notícias.'}finally{const remaining=Number(usageCounter?.dataset.remaining??1);button.disabled=remaining<=0}});
 updateEditoriaLabel();
