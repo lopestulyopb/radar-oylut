@@ -50,6 +50,91 @@ EDITORIA_ORDER = {
     "institucional": 9, "geral": 10, "politica": 11,
 }
 
+_EXPRESSIONS = {
+    "policial": (
+        "busca e apreensao", "atos obscenos", "violencia domestica", "tentativa de homicidio",
+        "trafico de drogas", "organizacao criminosa", "corpo encontrado", "arma de fogo",
+    ),
+    "servico": (
+        "alerta amarelo", "alerta laranja", "alerta vermelho", "processo seletivo",
+        "falta de agua", "interrupcao no abastecimento",
+    ),
+    "saude": ("plano de saude", "saude publica", "saude mental"),
+    "educacao": ("rede estadual", "rede municipal", "ensino superior"),
+    "economia": ("imposto de renda", "mercado imobiliario", "construcao civil", "microempreendedor individual"),
+    "justica": ("acao civil publica", "ministerio publico", "supremo tribunal", "tribunal de justica"),
+    "esportes": ("copa do brasil", "campeonato brasileiro"),
+    "cultura": ("festa das neves", "sao joao"),
+    "meio_ambiente": ("meio ambiente",),
+    "institucional": ("ordem de servico", "agenda oficial"),
+    "politica": ("pre-candidato", "pre-candidata", "base aliada", "oposicao"),
+}
+
+_EVENTS = {
+    "policial": (
+        "prende", "prendeu", "preso", "presa", "detido", "detida", "morre", "morreu", "morto", "morta",
+        "mata", "matou", "assassina", "assassinou", "rouba", "roubou", "furta", "furtou",
+        "assalta", "assaltou", "atropela", "atropelou", "capota", "capotou", "colide", "colidiu",
+        "apreende", "apreendeu", "cumpre mandado", "cumpriu mandado", "investiga", "investigou",
+        "tomba", "tombou", "bate", "bateu", "cai", "caiu", "despenca", "despencou",
+        "explode", "explodiu", "pega fogo", "pegou fogo", "afunda", "afundou", "naufraga", "naufragou",
+    ),
+    "servico": (
+        "abre", "abriu", "prorroga", "prorrogou", "anuncia", "anunciou", "alerta", "alertou",
+        "interdita", "interditou", "suspende", "suspendeu", "libera", "liberou",
+        "normaliza", "normalizou", "convoca", "convocou", "disponibiliza", "disponibilizou",
+    ),
+    "saude": (
+        "vacina", "vacinou", "interna", "internou", "opera", "operou", "transplanta", "transplantou",
+        "diagnostica", "diagnosticou", "confirma", "confirmou", "registra", "registrou", "amplia", "ampliou",
+    ),
+    "educacao": (
+        "matricula", "matriculou", "forma", "formou", "seleciona", "selecionou", "aprova", "aprovou",
+        "convoca", "convocou", "oferta", "ofertou",
+    ),
+    "economia": (
+        "gera", "gerou", "cresce", "cresceu", "reduz", "reduziu", "aumenta", "aumentou",
+        "cai", "caiu", "investe", "investiu", "restitui", "restituiu", "arrecada", "arrecadou",
+    ),
+    "justica": (
+        "condena", "condenou", "absolve", "absolveu", "autoriza", "autorizou", "determina", "determinou",
+        "suspende", "suspendeu", "mantem", "manteve", "julga", "julgou", "nega", "negou",
+    ),
+    "esportes": (
+        "vence", "venceu", "perde", "perdeu", "empata", "empatou", "classifica", "classificou",
+        "elimina", "eliminou", "contrata", "contratou",
+    ),
+    "cultura": (
+        "lanca", "lancou", "estreia", "estreou", "apresenta", "apresentou", "realiza", "realizou",
+        "celebra", "celebrou",
+    ),
+    "meio_ambiente": (
+        "desmata", "desmatou", "preserva", "preservou", "embarga", "embargou", "resgata", "resgatou",
+        "monitora", "monitorou",
+    ),
+    "institucional": (
+        "entrega", "entregou", "inaugura", "inaugurou", "assina", "assinou", "vistoria", "vistoriou",
+        "participa", "participou",
+    ),
+    "politica": (
+        "declara", "declarou", "anuncia", "anunciou", "articula", "articulou", "filia", "filiou",
+        "rompe", "rompeu", "apoia", "apoiou",
+    ),
+}
+
+_CONTEXT = {
+    "servico": ("vaga", "emprego", "inscricao", "prazo", "abastecimento", "agua", "energia", "transito", "beneficio", "concurso", "inmet"),
+    "saude": ("saude", "hospital", "vacina", "vacinacao", "paciente", "doenca", "cirurgia", "medicamento", "sus"),
+    "educacao": ("educacao", "escola", "universidade", "faculdade", "enem", "professor", "aluno", "matricula", "curso"),
+    "economia": ("economia", "emprego", "empresa", "mei", "imposto", "restituicao", "mercado", "preco", "salario", "turismo"),
+    "justica": ("justica", "juiz", "juiza", "tribunal", "stf", "stj", "tjp", "sentenca", "acao", "liminar", "alvara", "inquerito"),
+    "esportes": ("futebol", "campeonato", "clube", "jogo", "atleta", "time", "botafogo-pb", "treze", "campinense"),
+    "cultura": ("show", "musica", "cantor", "cantora", "filme", "festival", "livro", "teatro", "cultura"),
+    "meio_ambiente": ("ambiental", "meio ambiente", "queimada", "poluicao", "rio", "praia", "desmatamento", "fauna", "flora"),
+    "institucional": ("prefeitura", "governo", "secretaria", "gestao", "obra", "solenidade", "agenda"),
+    "politica": ("eleicao", "eleitoral", "candidato", "candidata", "prefeito", "governador", "deputado", "senador", "vereador", "partido", "chapa"),
+}
+
 
 def _ascii(value: Any) -> str:
     text = str(value or "").strip().lower()
@@ -146,78 +231,58 @@ def classify_editorial(item: dict[str, Any]) -> tuple[str, float, list[str]]:
     title = _ascii(_title(item))
     summary = _ascii(_summary(item))
     text = f"{title} {summary}"
-    reasons: list[str] = []
 
-    def hit(terms: Iterable[str], where: str = text) -> bool:
-        return _contains(where, terms)
+    # Expressões específicas prevalecem sobre palavras isoladas.
+    for category in ("policial", "justica", "servico", "saude", "educacao", "economia", "esportes", "cultura", "meio_ambiente", "institucional", "politica"):
+        if _contains(title, _EXPRESSIONS[category]):
+            return category, 0.98, ["expressão editorial no título"]
 
-    # Ação principal no título prevalece sobre temas secundários no resumo.
-    # Ocorrências policiais explícitas têm prioridade sobre referências secundárias
-    # a hospitais, saúde, estatísticas ou outras editorias.
-    if hit((
-        "policia", "prisao", "preso", "presa", "prende", "prendeu", "suspeito", "suspeita",
-        "foragido", "foragida", "capturado", "capturada", "detido", "detida",
-        "homicidio", "feminicidio", "assassinato", "morto a tiros", "morta a tiros",
-        "assalto", "roubo", "furto", "trafico", "faccao", "arma", "municao",
-        "sequestro", "estupro", "atos obscenos", "crime", "crimes",
-        "acidente", "colisao", "batida", "atropelamento", "capotamento", "engavetamento",
-        "tombamento", "queda", "afogamento", "naufragio",
-        "capota", "capotou", "colide", "colidiu", "bate", "bateu", "atropela", "atropelou",
-        "tomba", "tombou", "cai", "caiu", "despenca", "despencou", "explode", "explodiu",
-        "pega fogo", "pegou fogo", "afunda", "afundou", "naufraga", "naufragou",
-        "incendio", "explosao"
-    ), title):
-        reasons.append("ocorrência policial ou acidente no título")
-        return "policial", 0.96, reasons
-    if hit(("justica eleitoral", "stf", "stj", "tribunal", "juiz", "juiza", "sentenca", "absolve", "absolveu", "condena", "condenou", "determina", "decisao judicial", "recurso", "pericia", "inquerito"), title):
-        reasons.append("ação judicial no título")
-        return "justica", 0.94, reasons
-    if hit(("homenageia", "homenagem", "voto de aplausos", "medalha", "titulo de cidadania", "reconhecimento institucional", "solenidade"), title):
-        reasons.append("homenagem ou ato institucional no título")
-        return "institucional", 0.93, reasons
-    if hit(("campeonato", "partida", "jogo", "times", "torneio", "serie c", "serie d", "segunda divisao", "paraibano", "botafogo-pb", "treze", "campinense"), text):
-        reasons.append("competição esportiva")
-        return "esportes", 0.92, reasons
-    if hit(("inmet", "alerta de chuva", "chuvas intensas", "alerta amarelo", "alerta laranja", "bolsa familia", "calendario de pagamento", "refis", "renegociacao", "inscricoes", "prazo", "auxilio-doenca", "beneficio do inss"), text):
-        reasons.append("informação de utilidade pública")
-        return "servico", 0.91, reasons
-    if hit(("estagio", "estudante", "escola", "educacao", "universidade", "faculdade", "enem", "professor", "aluno", "matricula"), text):
-        reasons.append("tema educacional")
-        return "educacao", 0.88, reasons
-    if hit(("plano de saude", "tea", "autismo", "vacina", "vacinacao", "hospital", "doenca", "medicamento", "atendimento medico"), text):
-        reasons.append("tema de saúde")
-        return "saude", 0.87, reasons
-    if hit(("pre-candidatura", "pre-candidato", "pre-candidata", "candidato", "candidata", "chapa", "vice", "apoio", "convencao", "partido", "eleicoes", "senado", "governo da paraiba"), title):
-        reasons.append("articulação eleitoral no título")
-        return "politica", 0.91, reasons
-    if hit(("deputado", "senador", "vereador", "prefeito", "governador", "assembleia legislativa", "camara municipal", "ldo", "emendas"), text):
-        reasons.append("atividade político-parlamentar")
-        return "politica", 0.84, reasons
-    if hit(("cinema", "cineasta", "festival", "show", "musica", "musical", "teatro", "livro", "exposicao", "cultura", "tv", "televisao", "comunicador", "apresentador"), text):
-        reasons.append("tema cultural")
-        return "cultura", 0.86, reasons
-    if hit(("meio ambiente", "ambiental", "poluicao", "esgoto", "desmatamento", "fauna", "flora"), text):
-        reasons.append("tema ambiental")
-        return "meio_ambiente", 0.84, reasons
-    if hit(("economia", "emprego", "salario", "preco", "gasolina", "imposto", "imposto de renda", "restituicao", "credito", "comercio", "industria", "construcao civil", "turismo", "voos", "assentos"), text):
-        reasons.append("tema econômico")
-        return "economia", 0.82, reasons
-    if hit(("morre", "morreu", "falecimento", "luto"), title):
-        reasons.append("morte de personalidade sem violência")
-        return "geral", 0.85, reasons
-    if hit(("anuario", "ranking", "dados mostram", "registra alta", "aumento de", "taxa de", "indice de"), text):
-        if hit(("violencia", "violenta", "violento", "criminalidade", "roubo", "furto", "homicidio", "assassinato", "seguranca publica"), text):
-            reasons.append("levantamento sobre criminalidade")
-            return "policial", 0.91, reasons
-        reasons.append("levantamento estatístico")
-        return "geral", 0.82, reasons
+    # O acontecimento principal do título prevalece sobre a profissão ou personagem.
+    if _contains(title, _EVENTS["policial"]) or _contains(title, (
+        "policia", "prisao", "suspeito", "suspeita", "foragido", "foragida", "homicidio",
+        "feminicidio", "assassinato", "assalto", "roubo", "furto", "trafico", "faccao",
+        "arma", "municao", "sequestro", "estupro", "crime", "acidente", "colisao", "batida",
+        "atropelamento", "capotamento", "engavetamento", "tombamento", "afogamento", "naufragio",
+        "incendio", "explosao",
+    )):
+        return "policial", 0.97, ["ocorrência policial ou acidente no título"]
+
+    if _contains(title, _EVENTS["justica"]) and _contains(text, _CONTEXT["justica"]):
+        return "justica", 0.95, ["evento judicial no título"]
+    if _contains(title, _EVENTS["esportes"]) and _contains(text, _CONTEXT["esportes"]):
+        return "esportes", 0.94, ["evento esportivo no título"]
+    if _contains(title, _EVENTS["servico"]) and _contains(text, _CONTEXT["servico"]):
+        return "servico", 0.93, ["evento de serviço no título"]
+    if _contains(title, _EVENTS["saude"]) and _contains(text, _CONTEXT["saude"]):
+        return "saude", 0.92, ["evento de saúde no título"]
+    if _contains(title, _EVENTS["educacao"]) and _contains(text, _CONTEXT["educacao"]):
+        return "educacao", 0.91, ["evento educacional no título"]
+    if _contains(title, _EVENTS["economia"]) and _contains(text, _CONTEXT["economia"]):
+        return "economia", 0.90, ["evento econômico no título"]
+    if _contains(title, _EVENTS["cultura"]) and _contains(text, _CONTEXT["cultura"]):
+        return "cultura", 0.89, ["evento cultural no título"]
+    if _contains(title, _EVENTS["meio_ambiente"]) and _contains(text, _CONTEXT["meio_ambiente"]):
+        return "meio_ambiente", 0.88, ["evento ambiental no título"]
+    if _contains(title, _EVENTS["institucional"]) and _contains(text, _CONTEXT["institucional"]):
+        return "institucional", 0.87, ["evento institucional no título"]
+    if _contains(title, _EVENTS["politica"]) and _contains(text, _CONTEXT["politica"]):
+        return "politica", 0.86, ["evento político no título"]
+
+    # Temas de apoio, usados apenas quando nenhum evento dominante foi identificado.
+    for category in ("justica", "esportes", "servico", "saude", "educacao", "economia", "cultura", "meio_ambiente", "institucional", "politica"):
+        if _contains(text, _CONTEXT[category]):
+            return category, 0.78, ["tema editorial predominante"]
+
+    if _contains(text, ("anuario", "ranking", "dados mostram", "registra alta", "aumento de", "taxa de", "indice de")):
+        if _contains(text, ("violencia", "violenta", "violento", "criminalidade", "roubo", "furto", "homicidio", "assassinato", "seguranca publica")):
+            return "policial", 0.91, ["levantamento sobre criminalidade"]
+        return "geral", 0.82, ["levantamento estatístico"]
 
     original = _ascii(_get(item, "classificacao_editorial", "editoria", "categoria", "category", default="geral")).replace(" ", "_")
     if original == "seguranca":
         original = "policial"
     if original in EDITORIA_ORDER:
-        reasons.append("classificação original usada como apoio")
-        return original, 0.62, reasons
+        return original, 0.62, ["classificação original usada como apoio"]
     return "geral", 0.50, ["sem sinal editorial dominante"]
 
 
@@ -260,7 +325,6 @@ def _same_story(left: dict[str, Any], right: dict[str, Any]) -> bool:
         return False
 
     lnums, rnums = _numbers(f"{lt} {ls}"), _numbers(f"{rt} {rs}")
-    # Números conflitantes reduzem bastante a chance de ser o mesmo fato.
     if lnums and rnums and lnums.isdisjoint(rnums):
         common_tokens = _tokens(lt) & _tokens(rt)
         if len(common_tokens) < 5:
@@ -286,13 +350,20 @@ def _same_story(left: dict[str, Any], right: dict[str, Any]) -> bool:
     summary_overlap = len(summary_tokens_left & summary_tokens_right) / max(1, min(len(summary_tokens_left), len(summary_tokens_right)))
 
     score = 0
-    if sequence >= 0.72: score += 35
-    if jaccard >= 0.42: score += 30
-    if containment >= 0.66: score += 25
-    if llocations & rlocations: score += 18
-    if levents & revents: score += 18
-    if lnums & rnums: score += 12
-    if summary_overlap >= 0.38: score += 22
+    if sequence >= 0.72:
+        score += 35
+    if jaccard >= 0.42:
+        score += 30
+    if containment >= 0.66:
+        score += 25
+    if llocations & rlocations:
+        score += 18
+    if levents & revents:
+        score += 18
+    if lnums & rnums:
+        score += 12
+    if summary_overlap >= 0.38:
+        score += 22
 
     return score >= 70
 
@@ -337,8 +408,8 @@ def _merge_cluster(cluster: list[dict[str, Any]]) -> dict[str, Any]:
     dated = [(item, _parse_datetime(_published(item))) for item in cluster]
     dated = [(item, dt) for item, dt in dated if dt is not None]
     if dated:
-        oldest_item, oldest_dt = min(dated, key=lambda pair: pair[1])
-        newest_item, newest_dt = max(dated, key=lambda pair: pair[1])
+        oldest_item, _ = min(dated, key=lambda pair: pair[1])
+        newest_item, _ = max(dated, key=lambda pair: pair[1])
         primary["primeira_publicacao_em"] = _published(oldest_item)
         primary["ultima_publicacao_em"] = _published(newest_item)
         primary["publicado_em"] = _published(newest_item)
