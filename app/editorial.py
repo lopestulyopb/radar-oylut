@@ -146,7 +146,20 @@ def classify_editorial(item: dict[str, Any]) -> tuple[str, float, list[str]]:
         return _contains(where, terms)
 
     # Ação principal no título prevalece sobre temas secundários no resumo.
-    if hit(("justica eleitoral", "stf", "stj", "tribunal", "juiz", "juiza", "sentenca", "absolve", "absolveu", "condena", "condenou", "determina", "decisao judicial", "recurso", "pericia"), title):
+    # Ocorrências policiais explícitas têm prioridade sobre referências secundárias
+    # a hospitais, saúde, estatísticas ou outras editorias.
+    if hit((
+        "policia", "prisao", "preso", "presa", "prende", "prendeu", "suspeito", "suspeita",
+        "foragido", "foragida", "capturado", "capturada", "detido", "detida",
+        "homicidio", "feminicidio", "assassinato", "morto a tiros", "morta a tiros",
+        "assalto", "roubo", "furto", "trafico", "faccao", "arma", "municao",
+        "sequestro", "estupro", "atos obscenos", "crime", "crimes",
+        "acidente", "colisao", "atropelamento", "capotamento", "capota", "capotou",
+        "incendio", "explosao"
+    ), title):
+        reasons.append("ocorrência policial ou acidente no título")
+        return "policial", 0.96, reasons
+    if hit(("justica eleitoral", "stf", "stj", "tribunal", "juiz", "juiza", "sentenca", "absolve", "absolveu", "condena", "condenou", "determina", "decisao judicial", "recurso", "pericia", "inquerito"), title):
         reasons.append("ação judicial no título")
         return "justica", 0.94, reasons
     if hit(("homenageia", "homenagem", "voto de aplausos", "medalha", "titulo de cidadania", "reconhecimento institucional", "solenidade"), title):
@@ -155,9 +168,6 @@ def classify_editorial(item: dict[str, Any]) -> tuple[str, float, list[str]]:
     if hit(("campeonato", "partida", "jogo", "times", "torneio", "serie c", "serie d", "segunda divisao", "paraibano", "botafogo-pb", "treze", "campinense"), text):
         reasons.append("competição esportiva")
         return "esportes", 0.92, reasons
-    if hit(("policia", "prisao", "preso", "presa", "homicidio", "feminicidio", "assalto", "roubo", "furto", "trafico", "faccao", "arma", "municao", "sequestro", "estupro", "acidente", "colisao", "atropelamento", "capotamento", "incendio", "explosao"), title):
-        reasons.append("ocorrência policial ou acidente no título")
-        return "policial", 0.94, reasons
     if hit(("inmet", "alerta de chuva", "chuvas intensas", "alerta amarelo", "alerta laranja", "bolsa familia", "calendario de pagamento", "refis", "renegociacao", "inscricoes", "prazo", "auxilio-doenca", "beneficio do inss"), text):
         reasons.append("informação de utilidade pública")
         return "servico", 0.91, reasons
@@ -173,19 +183,22 @@ def classify_editorial(item: dict[str, Any]) -> tuple[str, float, list[str]]:
     if hit(("deputado", "senador", "vereador", "prefeito", "governador", "assembleia legislativa", "camara municipal", "ldo", "emendas"), text):
         reasons.append("atividade político-parlamentar")
         return "politica", 0.84, reasons
-    if hit(("cinema", "cineasta", "festival", "show", "musica", "teatro", "livro", "exposicao", "cultura"), text):
+    if hit(("cinema", "cineasta", "festival", "show", "musica", "musical", "teatro", "livro", "exposicao", "cultura", "tv", "televisao", "comunicador", "apresentador"), text):
         reasons.append("tema cultural")
         return "cultura", 0.86, reasons
     if hit(("meio ambiente", "ambiental", "poluicao", "esgoto", "desmatamento", "fauna", "flora"), text):
         reasons.append("tema ambiental")
         return "meio_ambiente", 0.84, reasons
-    if hit(("economia", "emprego", "salario", "preco", "gasolina", "imposto", "credito", "comercio", "industria", "construcao civil"), text):
+    if hit(("economia", "emprego", "salario", "preco", "gasolina", "imposto", "imposto de renda", "restituicao", "credito", "comercio", "industria", "construcao civil", "turismo", "voos", "assentos"), text):
         reasons.append("tema econômico")
         return "economia", 0.82, reasons
     if hit(("morre", "morreu", "falecimento", "luto"), title):
         reasons.append("morte de personalidade sem violência")
         return "geral", 0.85, reasons
     if hit(("anuario", "ranking", "dados mostram", "registra alta", "aumento de", "taxa de", "indice de"), text):
+        if hit(("violencia", "violenta", "violento", "criminalidade", "roubo", "furto", "homicidio", "assassinato", "seguranca publica"), text):
+            reasons.append("levantamento sobre criminalidade")
+            return "policial", 0.91, reasons
         reasons.append("levantamento estatístico")
         return "geral", 0.82, reasons
 
