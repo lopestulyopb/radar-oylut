@@ -57,7 +57,7 @@ function normalizedEditorial(item){
   const original=item.classificacao_editorial||'geral';
 
   if(isPublicPersonDeath(text)||isViolenceStatistics(text))return'geral';
-  if(containsAny(text,POLICE_TERMS)||original==='seguranca'||original==='policial')return'policial';
+  if(containsAny(text,POLICE_TERMS))return'policial';
   if(containsAny(text,['homenageia','homenagem','reconhecimento institucional','solenidade','recebe titulo','entrega medalha']))return'institucional';
   if(containsAny(text,['alerta de chuva','chuvas intensas','alerta amarelo','alerta laranja','inmet','falta de agua','falta de energia','abastecimento','interdicao','inscricoes abertas','cadastro','refis','renegociacao de dividas','vagas','concurso','curso gratuito','bolsa familia','calendario de pagamento']))return'servico';
   if(containsAny(text,['poluicao','esgoto','desmatamento','meio ambiente','ambiental','area de preservacao','fauna','flora','rios que desaguam','lancamento irregular']))return'meio_ambiente';
@@ -65,9 +65,10 @@ function normalizedEditorial(item){
   if(containsAny(text,['plano de saude','tea','autismo','vacina','vacinacao','hospital','doenca','surto','medicamento','atendimento medico','sus']))return'saude';
   if(containsAny(text,['estudante','estagio','escola','educacao','universidade','faculdade','enem','professor','aluno','matricula escolar','sindrome de down']))return'educacao';
   if(containsAny(text,['partido','eleicao','eleicoes','candidato','candidata','pre-candidato','pre candidata','chapa','vice','apoio politico','deputado','senador','vereador','governador','prefeito','exonera secretario','pesquisa eleitoral','votos em campina']))return'politica';
-  if(containsAny(text,['tse','stf','stj','tribunal','justica','juiz','juiza','sentenca','decisao judicial','acao judicial','aciona o','ministerio publico','mppb','mpf','condenacao','processo judicial','pericia em investimentos']))return'justica';
+  if(containsAny(text,['tse','stf','stj','tribunal','justica','juiz','juiza','sentenca','decisao judicial','acao judicial','aciona o','ministerio publico','mppb','mpf','condenacao','processo judicial','pericia','pericia em investimentos','batalha judicial']))return'justica';
   if(containsAny(text,['futebol','campeonato','torneio','botafogo-pb','botafogo pb','treze','campinense','volei','basquete','selecao brasileira']))return'esportes';
   if(containsAny(text,['economia','emprego','salario','preco','gasolina','inss','imposto','credito','comercio','industria']))return'economia';
+  if(original==='seguranca'||original==='policial')return'policial';
   return EDITORIA_ORDER[original]!==undefined?original:'geral';
 }
 
