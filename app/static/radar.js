@@ -20,7 +20,7 @@ const ORDER_LABELS={editor_chefe:'Padrão',recentes:'Mais recentes dentro de cad
 
 const PUBLIC_PERSON_TERMS=['ator','atriz','cantor','cantora','artista','cineasta','diretor','diretora','jornalista','reporter','apresentador','apresentadora','influenciador','influenciadora','empresario','empresaria','escritor','escritora','prefeito','ex-prefeito','governador','deputado','senador','vereador','politico','jogador','ex-jogador','esportista'];
 const VIOLENT_DEATH_TERMS=['morto a tiros','morta a tiros','assassinado','assassinada','homicidio','feminicidio','latrocinio','chacina','corpo encontrado','morte violenta','morte suspeita'];
-const POLICE_TERMS=['homicidio','feminicidio','latrocinio','chacina','assalto','roubo','furto','receptacao','trafico','drogas','arma','municoes','prisao','preso','presa','mandado','operacao policial','policia civil','policia militar','organizacao criminosa','faccao','sequestro','refem','estupro','atos obscenos','violencia domestica','golpe','fraude','desaparecido','desaparecida','acidente','atropelamento','colisao','capotamento','afogamento','incendio','explosao'];
+const POLICE_TERMS=['homicidio','duplo homicidio','feminicidio','latrocinio','chacina','assalto','roubo','furto','receptacao','trafico','drogas','arma','armas','municao','municoes','prisao','preso','presos','presa','presas','mandado','mandados','operacao policial','policia civil','policia militar','organizacao criminosa','faccao','sequestro','refem','estupro','atos obscenos','violencia domestica','golpe','fraude','desaparecido','desaparecida','acidente','atropelamento','colisao','capotamento','afogamento','incendio','explosao'];
 const STATISTICS_TERMS=['anuario','ranking','levantamento','pesquisa aponta','dados mostram','registra alta','aumento de','queda de','taxa de','indice de','entre as cidades mais violentas'];
 
 function selectedEditorias(){return Array.from(document.querySelectorAll('input[name="editoria"]:checked')).map(input=>input.value)}
@@ -40,7 +40,14 @@ async function copyWithFeedback(text,control,label){try{await navigator.clipboar
 copyButton.addEventListener('click',()=>{if(currentNews.length)copyWithFeedback(copyText(currentNews),copyButton,'Resultados copiados ✓')});
 
 function normalizedText(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()}
-function containsAny(text,terms){return terms.some(term=>text.includes(normalizedText(term)))}
+function escapeRegExp(value){return value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
+function hasWholeTerm(text,term){
+  const normalizedTerm=normalizedText(term).trim();
+  if(!normalizedTerm)return false;
+  const pattern=escapeRegExp(normalizedTerm).replace(/\s+/g,'\\s+');
+  return new RegExp(`(^|[^a-z0-9])${pattern}(?=$|[^a-z0-9])`,'i').test(text);
+}
+function containsAny(text,terms){return terms.some(term=>hasWholeTerm(text,term))}
 function itemText(item){return normalizedText(`${item.titulo||''} ${item.resumo||''}`)}
 function isPublicPersonDeath(text){return containsAny(text,['morre','morreu','morte','luto','falecimento'])&&containsAny(text,PUBLIC_PERSON_TERMS)&&!containsAny(text,VIOLENT_DEATH_TERMS)}
 function isViolenceStatistics(text){return containsAny(text,STATISTICS_TERMS)&&containsAny(text,['violencia','crime','furto','roubo','homicidio','mortes violentas','cidade mais violenta'])}
@@ -50,6 +57,7 @@ function normalizedEditorial(item){
   const original=item.classificacao_editorial||'geral';
 
   if(isPublicPersonDeath(text)||isViolenceStatistics(text))return'geral';
+  if(containsAny(text,POLICE_TERMS)||original==='seguranca'||original==='policial')return'policial';
   if(containsAny(text,['homenageia','homenagem','reconhecimento institucional','solenidade','recebe titulo','entrega medalha']))return'institucional';
   if(containsAny(text,['alerta de chuva','chuvas intensas','alerta amarelo','alerta laranja','inmet','falta de agua','falta de energia','abastecimento','interdicao','inscricoes abertas','cadastro','refis','renegociacao de dividas','vagas','concurso','curso gratuito','bolsa familia','calendario de pagamento']))return'servico';
   if(containsAny(text,['poluicao','esgoto','desmatamento','meio ambiente','ambiental','area de preservacao','fauna','flora','rios que desaguam','lancamento irregular']))return'meio_ambiente';
@@ -60,7 +68,6 @@ function normalizedEditorial(item){
   if(containsAny(text,['tse','stf','stj','tribunal','justica','juiz','juiza','sentenca','decisao judicial','acao judicial','aciona o','ministerio publico','mppb','mpf','condenacao','processo judicial','pericia em investimentos']))return'justica';
   if(containsAny(text,['futebol','campeonato','torneio','botafogo-pb','botafogo pb','treze','campinense','volei','basquete','selecao brasileira']))return'esportes';
   if(containsAny(text,['economia','emprego','salario','preco','gasolina','inss','imposto','credito','comercio','industria']))return'economia';
-  if(containsAny(text,POLICE_TERMS)||original==='seguranca'||original==='policial')return'policial';
   return EDITORIA_ORDER[original]!==undefined?original:'geral';
 }
 
