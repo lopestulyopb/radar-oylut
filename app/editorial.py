@@ -33,7 +33,13 @@ _EVENT_GROUPS = {
     "operacao": ("operacao", "acao policial", "deflagrou", "mandados"),
     "armas": ("arma", "armas", "municao", "municoes", "venda ilegal de armas"),
     "trafico": ("trafico", "drogas", "entorpecentes"),
-    "acidente": ("acidente", "colisao", "batida", "capotamento", "atropelamento"),
+    "acidente": (
+        "acidente", "colisao", "batida", "capotamento", "atropelamento", "engavetamento",
+        "tombamento", "queda", "explosao", "incendio", "afogamento", "naufragio",
+        "capota", "capotou", "colide", "colidiu", "bate", "bateu", "atropela", "atropelou",
+        "tomba", "tombou", "cai", "caiu", "despenca", "despencou", "explode", "explodiu",
+        "pega fogo", "pegou fogo", "afunda", "afundou", "naufraga", "naufragou",
+    ),
     "chuva": ("chuvas intensas", "alerta de chuva", "inmet", "alerta amarelo", "alerta laranja"),
     "eleicao": ("eleicao", "eleitoral", "pre-candidatura", "candidato", "vice", "senado", "governo"),
 }
@@ -154,7 +160,11 @@ def classify_editorial(item: dict[str, Any]) -> tuple[str, float, list[str]]:
         "homicidio", "feminicidio", "assassinato", "morto a tiros", "morta a tiros",
         "assalto", "roubo", "furto", "trafico", "faccao", "arma", "municao",
         "sequestro", "estupro", "atos obscenos", "crime", "crimes",
-        "acidente", "colisao", "atropelamento", "capotamento", "capota", "capotou",
+        "acidente", "colisao", "batida", "atropelamento", "capotamento", "engavetamento",
+        "tombamento", "queda", "afogamento", "naufragio",
+        "capota", "capotou", "colide", "colidiu", "bate", "bateu", "atropela", "atropelou",
+        "tomba", "tombou", "cai", "caiu", "despenca", "despencou", "explode", "explodiu",
+        "pega fogo", "pegou fogo", "afunda", "afundou", "naufraga", "naufragou",
         "incendio", "explosao"
     ), title):
         reasons.append("ocorrência policial ou acidente no título")
