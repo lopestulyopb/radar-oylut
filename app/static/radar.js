@@ -11,6 +11,7 @@ const editoriaAtual=document.getElementById('editoriaAtual');
 const usageCounter=document.getElementById('usageCounter');
 let currentNews=[];
 let activeResultEditorial='todos';
+let lastResearch=null;
 
 const EDITORIA_LABELS={
   policial:'Policial',servico:'Serviço',saude:'Saúde',educacao:'Educação',economia:'Economia',
@@ -18,7 +19,7 @@ const EDITORIA_LABELS={
   politica:'Política',justica:'Justiça',institucional:'Institucional'
 };
 const EDITORIA_ORDER={policial:0,servico:1,saude:2,educacao:3,economia:4,justica:5,esportes:6,cultura:7,meio_ambiente:8,institucional:9,geral:10,politica:11};
-const ORDER_LABELS={editor_chefe:'Padrão',recentes:'Mais recentes'};
+const ORDER_LABELS={editor_chefe:'Padrão (peso jornalístico)',recentes:'Mais recentes'};
 
 function selectedEditorias(){return Array.from(document.querySelectorAll('input[name="editoria"]:checked')).map(input=>input.value)}
 function selectedOrder(){return document.querySelector('input[name="ordenar"]:checked')?.value||'editor_chefe'}
@@ -35,7 +36,16 @@ function sortedSources(item){return [...(item.fontes||[])].sort((a,b)=>String(a.
 function firstPublished(item){return item.primeira_publicacao_em||item.publicado_em}
 function articleText(item,index=null){const links=sortedSources(item).map(s=>`${s.nome||s.fonte}: ${s.link||s.url}`).join('\n');const published=formatDate(firstPublished(item));const prefix=index===null?'':`${index+1}. `;return `${prefix}${item.titulo}\n\n${item.resumo}${published?`\n\nPublicado: ${published}`:''}\n\nLinks:\n${links}`}
 function singleArticleText(item){return `RADAR OYLUT\n\n${articleText(item)}`}
-function copyText(news){return `RADAR OYLUT\n\n${news.map((item,index)=>articleText(item,index)).join('\n\n------------------------------\n\n')}`}
+function researchHeader(news){
+  const research=lastResearch||{performedAt:new Date(),hours:'24',editorias:'Todas',order:'editor_chefe'};
+  const performedAt=research.performedAt instanceof Date?research.performedAt:new Date(research.performedAt);
+  const date=performedAt.toLocaleDateString('pt-BR');
+  const time=performedAt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  const period=research.hours==='1'?'última 1 hora':`últimas ${research.hours} horas`;
+  const resultFilterLabel=activeResultEditorial==='todos'?'':`\nFiltro dos resultados: ${EDITORIA_LABELS[activeResultEditorial]}`;
+  return `RADAR OYLUT\n\nPESQUISA\nData: ${date}\nHora: ${time}\n\nPeríodo pesquisado: ${period}\nEditorias: ${research.editorias}\nOrdenação: ${ORDER_LABELS[research.order]||'Padrão (peso jornalístico)'}${resultFilterLabel}\nTotal de fatos: ${news.length}`;
+}
+function copyText(news){return `${researchHeader(news)}\n\n------------------------------\n\n${news.map((item,index)=>articleText(item,index)).join('\n\n------------------------------\n\n')}`}
 async function copyWithFeedback(text,control,label){try{await navigator.clipboard.writeText(text);const original=control.textContent;control.textContent=label;control.classList.add('copied');setTimeout(()=>{control.textContent=original;control.classList.remove('copied')},1800)}catch(_){status.textContent='Não foi possível copiar automaticamente. Tente novamente pelo navegador.'}}
 copyButton.addEventListener('click',()=>{const visible=filteredResultNews();if(visible.length)copyWithFeedback(copyText(visible),copyButton,'Resultados copiados ✓')});
 
@@ -75,5 +85,5 @@ function renderResultFilter(){
   resultFilter.hidden=false;
 }
 
-button.addEventListener('click',async()=>{const horas=document.querySelector('input[name="horas"]:checked')?.value||'24';const ordenar=selectedOrder();button.disabled=true;copyButton.hidden=true;currentNews=[];activeResultEditorial='todos';resultFilter.hidden=true;resultFilter.innerHTML='';status.textContent=`Buscando fatos de ${selectedEditoriasLabel().toLowerCase()}...`;results.innerHTML='';try{const response=await fetch(`/radar?horas=${encodeURIComponent(horas)}&editoria=todas&ordenar=${encodeURIComponent(ordenar)}`);if(response.status===401){location.href='/login';return}const payload=await response.json();if(response.status===403){status.textContent=payload.detail||'Consulte sua assinatura em Minha Conta.';return}if(response.status===429){updateUsage({used:payload.used,remaining:payload.remaining,limit:payload.limit});status.textContent=payload.detail||'Limite diário atingido.';return}if(!response.ok)throw new Error(payload.detail||'Falha ao executar o Radar.');currentNews=groupAndOrder(filterNews(payload.noticias||[]),ordenar);updateUsage(payload.usage);renderResultFilter();refreshRenderedResults()}catch(error){status.textContent=error.message||'Não foi possível carregar as notícias.'}finally{const remaining=Number(usageCounter?.dataset.remaining??1);button.disabled=remaining<=0}});
+button.addEventListener('click',async()=>{const horas=document.querySelector('input[name="horas"]:checked')?.value||'24';const ordenar=selectedOrder();const editoriasDaPesquisa=selectedEditoriasLabel();button.disabled=true;copyButton.hidden=true;currentNews=[];activeResultEditorial='todos';lastResearch=null;resultFilter.hidden=true;resultFilter.innerHTML='';status.textContent=`Buscando fatos de ${editoriasDaPesquisa.toLowerCase()}...`;results.innerHTML='';try{const response=await fetch(`/radar?horas=${encodeURIComponent(horas)}&editoria=todas&ordenar=${encodeURIComponent(ordenar)}`);if(response.status===401){location.href='/login';return}const payload=await response.json();if(response.status===403){status.textContent=payload.detail||'Consulte sua assinatura em Minha Conta.';return}if(response.status===429){updateUsage({used:payload.used,remaining:payload.remaining,limit:payload.limit});status.textContent=payload.detail||'Limite diário atingido.';return}if(!response.ok)throw new Error(payload.detail||'Falha ao executar o Radar.');currentNews=groupAndOrder(filterNews(payload.noticias||[]),ordenar);lastResearch={performedAt:new Date(),hours:horas,editorias:editoriasDaPesquisa,order:ordenar};updateUsage(payload.usage);renderResultFilter();refreshRenderedResults()}catch(error){status.textContent=error.message||'Não foi possível carregar as notícias.'}finally{const remaining=Number(usageCounter?.dataset.remaining??1);button.disabled=remaining<=0}});
 updateEditoriaLabel();
