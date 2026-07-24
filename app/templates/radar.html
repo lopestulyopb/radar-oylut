@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Radar Oylut</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=20260724-1">
   <link rel="stylesheet" href="/static/sidebar-scroll.css?v=20260723-1">
 </head>
 <body>
@@ -53,8 +53,12 @@
       </div>
       <div class="actions"><button id="iniciar" type="button" {% if consultas_restantes == 0 or not subscription_active %}disabled{% endif %}>Iniciar</button><button id="copiar" class="secondary" type="button" hidden>Copiar resultados</button></div>
     </section>
-    <section aria-live="polite"><div id="status" class="status">{% if not subscription_active %}Consulte a situação da sua assinatura em Minha Conta.{% elif consultas_restantes == 0 %}Você atingiu o limite diário de {{ limite_diario }} consultas.{% endif %}</div><div id="resultados" class="results"></div></section>
+    <section aria-live="polite">
+      <div id="status" class="status">{% if not subscription_active %}Consulte a situação da sua assinatura em Minha Conta.{% elif consultas_restantes == 0 %}Você atingiu o limite diário de {{ limite_diario }} consultas.{% endif %}</div>
+      <div id="resultFilter" class="result-filter" hidden aria-label="Filtrar resultados por editoria"></div>
+      <div id="resultados" class="results"></div>
+    </section>
   </main>
-  <script src="/static/radar.js?v=20260723-4" defer></script>
+  <script src="/static/radar.js?v=20260724-1" defer></script>
 </body>
 </html>
