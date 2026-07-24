@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Admin{% endblock %} | Radar Oylut</title>
+  <link rel="stylesheet" href="/static/admin.css?v=7006">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <aside class="admin-sidebar">
+    <div class="admin-brand"><span>OYLUT</span><strong>Admin</strong></div>
+    <nav>
+      <a class="{% if active=='dashboard' %}active{% endif %}" href="/admin">Visão geral</a>
+      <a class="{% if active=='users' %}active{% endif %}" href="/admin/usuarios">Usuários</a>
+      <a class="{% if active=='subscriptions' %}active{% endif %}" href="/admin/assinaturas">Assinaturas</a>
+      <a class="{% if active=='feedback' %}active{% endif %}" href="/admin/feedback">Feedback</a>
+      <a class="{% if active=='contacts' %}active{% endif %}" href="/admin/contato">Contato</a>
+      <a class="{% if active=='statistics' %}active{% endif %}" href="/admin/estatisticas">Estatísticas</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="/">Abrir Radar</a>
+      <form method="post" action="/admin/sair"><button type="submit">Sair</button></form>
+    </div>
+  </aside>
+  <main class="admin-main">
+    <header class="admin-topbar">
+      <div><p class="eyebrow">RADAR OYLUT</p><h1>{% block heading %}Painel administrativo{% endblock %}</h1></div>
+      <span class="version">v{{ version }}</span>
+    </header>
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
