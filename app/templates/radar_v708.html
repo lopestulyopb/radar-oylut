@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Radar Oylut</title>
+  <link rel="stylesheet" href="/static/style.css?v=20260724-3">
+  <link rel="stylesheet" href="/static/sidebar-scroll.css?v=20260723-1">
+</head>
+<body>
+  <div id="sidebarBackdrop" class="sidebar-backdrop" hidden></div>
+  <aside id="sidebar" class="sidebar" aria-hidden="true" aria-label="Menu do Radar">
+    <div class="sidebar-header"><div><div class="brand">OYLUT</div><h2>Menu</h2></div><button id="fecharMenu" class="icon-button secondary" type="button" aria-label="Fechar menu">×</button></div>
+    <div class="sidebar-section"><p class="sidebar-label">Navegação</p><a class="sidebar-link" href="/">Home</a></div>
+    <div class="sidebar-section"><p class="sidebar-label">Conta</p><a class="sidebar-link" href="/minha-conta">Minha Conta</a><a class="sidebar-link" href="/static/nosso-proposito.html">Nosso propósito</a><a class="sidebar-link" href="/static/instrucoes.html">Instruções</a></div>
+    <div class="sidebar-section"><p class="sidebar-label">Suporte</p><a class="sidebar-link" href="/static/feedback.html">Feedback</a><a class="sidebar-link" href="/static/contato.html">Contato</a></div>
+    <div class="sidebar-section">
+      <p class="sidebar-label">Filtrar por editoria</p>
+      <div class="editoria-options" role="group" aria-label="Escolha uma ou mais editorias">
+        <label><input type="checkbox" name="editoria" value="policial"><span>Policial</span></label>
+        <label><input type="checkbox" name="editoria" value="servico"><span>Serviço</span></label>
+        <label><input type="checkbox" name="editoria" value="saude"><span>Saúde</span></label>
+        <label><input type="checkbox" name="editoria" value="educacao"><span>Educação</span></label>
+        <label><input type="checkbox" name="editoria" value="economia"><span>Economia</span></label>
+        <label><input type="checkbox" name="editoria" value="geral"><span>Geral</span></label>
+        <label><input type="checkbox" name="editoria" value="esportes"><span>Esportes</span></label>
+        <label><input type="checkbox" name="editoria" value="cultura"><span>Cultura</span></label>
+        <label><input type="checkbox" name="editoria" value="meio_ambiente"><span>Meio Ambiente</span></label>
+        <label><input type="checkbox" name="editoria" value="politica"><span>Política</span></label>
+        <label><input type="checkbox" name="editoria" value="justica"><span>Justiça</span></label>
+        <label><input type="checkbox" name="editoria" value="institucional"><span>Institucional</span></label>
+      </div>
+      <p class="field-help">Nenhuma marcada exibe todas as editorias.</p>
+    </div>
+  </aside>
+  <header class="topbar">
+    <div class="topbar-title"><button id="abrirMenu" class="menu-button secondary" type="button" aria-label="Abrir menu" aria-expanded="false">☰</button><div><div class="brand">OYLUT</div><h1>Radar</h1></div></div>
+    <form method="post" action="/sair"><button class="secondary" type="submit">Sair</button></form>
+  </header>
+  <main class="radar-shell">
+    <div class="user-line"><p class="user">Acesso: {{ email }}</p><p id="usageCounter" class="usage-counter" data-unlimited="{{ 'true' if consultas_ilimitadas else 'false' }}" data-used="{{ consultas_usadas }}" data-limit="{{ limite_diario }}" data-remaining="{{ consultas_restantes }}">{% if consultas_ilimitadas %}Pesquisas ilimitadas{% else %}{{ consultas_restantes }} consulta(s) restante(s) hoje{% endif %}</p></div>
+    <section class="control-panel">
+      <div class="selection-summary"><div><h2>Período das notícias</h2><p id="editoriaAtual" class="active-filter">Editorias: Todas</p></div></div>
+      <div class="periods" role="radiogroup" aria-label="Escolha o período">{% for hora in [1, 2, 6, 12, 24] %}<label><input type="radio" name="horas" value="{{ hora }}" {% if hora == 24 %}checked{% endif %}><span>{{ hora }}h</span></label>{% endfor %}</div>
+      <div class="order-control"><span class="order-title">Ordenar por</span><div class="order-options" role="radiogroup" aria-label="Ordenação das notícias"><label><input type="radio" name="ordenar" value="editor_chefe" {% if default_order=='editor_chefe' %}checked{% endif %}><span>Padrão</span></label><label><input type="radio" name="ordenar" value="recentes" {% if default_order=='recentes' %}checked{% endif %}><span>Mais recentes</span></label></div></div>
+      <div class="actions"><button id="iniciar" type="button" {% if (not consultas_ilimitadas and consultas_restantes == 0) or not subscription_active %}disabled{% endif %}>Iniciar</button><button id="copiar" class="secondary" type="button" hidden>Copiar resultados</button></div>
+    </section>
+    <section aria-live="polite"><div id="status" class="status">{% if not subscription_active %}Consulte a situação da sua assinatura em Minha Conta.{% elif not consultas_ilimitadas and consultas_restantes == 0 %}Você atingiu o limite diário de {{ limite_diario }} consultas.{% endif %}</div><div id="resultFilter" class="result-filter" hidden aria-label="Filtrar resultados por editoria"></div><div id="resultados" class="results"></div></section>
+  </main>
+  <script src="/static/radar.js?v=20260724-708" defer></script>
+</body>
+</html>
