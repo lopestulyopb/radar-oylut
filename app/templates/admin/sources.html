@@ -1,0 +1,37 @@
+{% extends 'admin/base.html' %}
+{% block title %}Fontes{% endblock %}
+{% block heading %}Fontes{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Monitoramento dos portais</h2>
+      <p class="muted">Ative, desative e teste as fontes usadas pelo Radar.</p>
+    </div>
+    <form method="post" action="/admin/fontes/testar"><button type="submit">Testar fontes</button></form>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Portal</th><th>Status</th><th>Último teste</th><th>Última coleta</th><th>Tempo médio</th><th>Notícias</th><th>Coleta</th></tr></thead>
+      <tbody>
+      {% for source in sources %}
+        <tr>
+          <td><strong>{{ source.source_name }}</strong><br><span class="muted">{{ source.source_url }}</span></td>
+          <td><span class="pill {{ source.status }}">{{ source.status|replace('_',' ') }}</span></td>
+          <td>{{ source.last_checked_at or 'Ainda não testada' }}</td>
+          <td>{{ source.last_collection_at or 'Sem coleta registrada' }}</td>
+          <td>{% if source.average_response_ms is not none %}{{ source.average_response_ms }} ms{% else %}—{% endif %}</td>
+          <td>{{ source.collected_news_count or 0 }}</td>
+          <td>
+            <form method="post" action="/admin/fontes/{{ source.source_key }}/alternar">
+              <input type="hidden" name="enabled" value="{{ 'false' if source.enabled else 'true' }}">
+              <button type="submit" class="{% if source.enabled %}danger{% endif %}">{{ 'Desativar' if source.enabled else 'Ativar' }}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
