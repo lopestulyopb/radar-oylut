@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{% block title %}Admin{% endblock %} | Radar Oylut</title>
-  <link rel="stylesheet" href="/static/admin.css?v=7006">
+  <link rel="stylesheet" href="/static/admin.css?v=7008">
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   {% block head %}{% endblock %}
 </head>
@@ -18,6 +18,8 @@
       <a class="{% if active=='feedback' %}active{% endif %}" href="/admin/feedback">Feedback</a>
       <a class="{% if active=='contacts' %}active{% endif %}" href="/admin/contato">Contato</a>
       <a class="{% if active=='statistics' %}active{% endif %}" href="/admin/estatisticas">Estatísticas</a>
+      <a class="{% if active=='sources' %}active{% endif %}" href="/admin/fontes">Fontes</a>
+      <a class="{% if active=='settings' %}active{% endif %}" href="/admin/configuracoes">Configurações</a>
     </nav>
     <div class="sidebar-footer">
       <a href="/">Abrir Radar</a>
