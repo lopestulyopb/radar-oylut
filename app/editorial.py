@@ -24,13 +24,13 @@ _STOPWORDS = {
 
 _LOCATION_TERMS = (
     "joao pessoa", "campina grande", "santa rita", "cabedelo", "conde", "lucena", "bayeux", "pombal",
-    "itaporanga", "sao bento", "brejo", "sertao", "cariri", "paraiba", "gurugi", "tibiri",
+    "itaporanga", "sao bento", "brejo", "sertao", "cariri", "paraiba", "gurugi", "tibiri", "queimadas",
 )
 
 _EVENT_GROUPS = {
     "homicidio": ("homicidio", "assassinato", "morto a tiros", "morta a tiros", "feminicidio", "chacina"),
-    "prisao": ("preso", "presa", "prisao", "mandado de prisao", "capturado", "detido"),
-    "operacao": ("operacao", "acao policial", "deflagrou", "mandados"),
+    "prisao": ("preso", "presa", "prisao", "mandado de prisao", "capturado", "detido", "indiciado"),
+    "operacao": ("operacao", "acao policial", "deflagrou", "mandados", "policia civil"),
     "armas": ("arma", "armas", "municao", "municoes", "venda ilegal de armas"),
     "trafico": ("trafico", "drogas", "entorpecentes"),
     "acidente": (
@@ -40,8 +40,8 @@ _EVENT_GROUPS = {
         "tomba", "tombou", "cai", "caiu", "despenca", "despencou", "explode", "explodiu",
         "pega fogo", "pegou fogo", "afunda", "afundou", "naufraga", "naufragou",
     ),
-    "chuva": ("chuvas intensas", "alerta de chuva", "inmet", "alerta amarelo", "alerta laranja"),
-    "eleicao": ("eleicao", "eleitoral", "pre-candidatura", "candidato", "vice", "senado", "governo"),
+    "chuva": ("chuvas intensas", "alerta de chuva", "inmet", "alerta amarelo", "alerta laranja", "alagamento"),
+    "eleicao": ("eleicao", "eleitoral", "pre-candidatura", "pre-candidato", "pre-candidata", "vice", "senado", "chapa"),
 }
 
 EDITORIA_ORDER = {
@@ -54,20 +54,46 @@ _EXPRESSIONS = {
     "policial": (
         "busca e apreensao", "atos obscenos", "violencia domestica", "tentativa de homicidio",
         "trafico de drogas", "organizacao criminosa", "corpo encontrado", "arma de fogo",
+        "maus-tratos", "maus tratos", "preso em flagrante", "indiciado pela policia civil",
     ),
     "servico": (
-        "alerta amarelo", "alerta laranja", "alerta vermelho", "processo seletivo",
-        "falta de agua", "interrupcao no abastecimento",
+        "alerta amarelo", "alerta laranja", "alerta vermelho", "processo seletivo", "falta de agua",
+        "interrupcao no abastecimento", "abre consulta", "consulta a restituicao", "consulta ao terceiro lote",
+        "calendario de pagamento", "datas de pagamento", "pagamento do beneficio", "pesquisa de precos",
+        "levantamento de precos", "menor preco da gasolina", "preco da gasolina", "bolsa familia",
     ),
-    "saude": ("plano de saude", "saude publica", "saude mental"),
+    "saude": (
+        "plano de saude", "saude publica", "saude mental", "erro medico", "erro hospitalar",
+        "cirurgia errada", "cirurgia bariatrica", "procedimento cirurgico", "morte de paciente",
+    ),
     "educacao": ("rede estadual", "rede municipal", "ensino superior"),
-    "economia": ("imposto de renda", "mercado imobiliario", "construcao civil", "microempreendedor individual"),
-    "justica": ("acao civil publica", "ministerio publico", "supremo tribunal", "tribunal de justica"),
+    "economia": (
+        "imposto de renda", "mercado imobiliario", "construcao civil", "microempreendedor individual",
+        "tarifa de importacao", "tarifa sobre produtos", "comercio exterior", "produtos brasileiros",
+    ),
+    "justica": (
+        "acao civil publica", "ministerio publico", "supremo tribunal", "tribunal de justica",
+        "prisao domiciliar", "decisao judicial", "justica eleitoral", "propaganda eleitoral",
+        "acao anulatoria", "ajuizou uma acao",
+    ),
     "esportes": ("copa do brasil", "campeonato brasileiro"),
-    "cultura": ("festa das neves", "sao joao"),
-    "meio_ambiente": ("meio ambiente",),
-    "institucional": ("ordem de servico", "agenda oficial"),
-    "politica": ("pre-candidato", "pre-candidata", "base aliada", "oposicao"),
+    "cultura": (
+        "festa das neves", "sao joao", "qual a boa", "agenda cultural", "programacao cultural",
+        "o que fazer no fim de semana",
+    ),
+    "meio_ambiente": (
+        "meio ambiente", "chuvas intensas", "volume de chuva", "acumulado de chuva",
+        "indice pluviometrico", "alagamento causado pela chuva", "fortes chuvas",
+    ),
+    "institucional": (
+        "ordem de servico", "agenda oficial", "plano estadual", "programa estadual", "politica publica",
+        "rescinde contrato", "rescisao contratual", "contrato de obra",
+    ),
+    "politica": (
+        "pre-candidato", "pre-candidata", "base aliada", "oposicao", "escolha do vice",
+        "vaga de vice", "convencao eleitoral", "coloca a disposicao", "lanca movimento",
+        "substitui pre-candidato", "pre-candidato ao senado", "pre-candidato ao governo",
+    ),
 }
 
 _EVENTS = {
@@ -78,11 +104,13 @@ _EVENTS = {
         "apreende", "apreendeu", "cumpre mandado", "cumpriu mandado", "investiga", "investigou",
         "tomba", "tombou", "bate", "bateu", "cai", "caiu", "despenca", "despencou",
         "explode", "explodiu", "pega fogo", "pegou fogo", "afunda", "afundou", "naufraga", "naufragou",
+        "indicia", "indiciou", "indiciado", "espanca", "espancou",
     ),
     "servico": (
         "abre", "abriu", "prorroga", "prorrogou", "anuncia", "anunciou", "alerta", "alertou",
         "interdita", "interditou", "suspende", "suspendeu", "libera", "liberou",
         "normaliza", "normalizou", "convoca", "convocou", "disponibiliza", "disponibilizou",
+        "consulta", "paga", "pagou",
     ),
     "saude": (
         "vacina", "vacinou", "interna", "internou", "opera", "operou", "transplanta", "transplantou",
@@ -99,6 +127,8 @@ _EVENTS = {
     "justica": (
         "condena", "condenou", "absolve", "absolveu", "autoriza", "autorizou", "determina", "determinou",
         "suspende", "suspendeu", "mantem", "manteve", "julga", "julgou", "nega", "negou",
+        "concede", "concedeu", "revoga", "revogou", "ajuiza", "ajuizou", "proibe", "proibiu",
+        "restringe", "restringiu", "anula", "anulou",
     ),
     "esportes": (
         "vence", "venceu", "perde", "perdeu", "empata", "empatou", "classifica", "classificou",
@@ -110,30 +140,71 @@ _EVENTS = {
     ),
     "meio_ambiente": (
         "desmata", "desmatou", "preserva", "preservou", "embarga", "embargou", "resgata", "resgatou",
-        "monitora", "monitorou",
+        "monitora", "monitorou", "alaga", "alagou",
     ),
     "institucional": (
         "entrega", "entregou", "inaugura", "inaugurou", "assina", "assinou", "vistoria", "vistoriou",
-        "participa", "participou",
+        "participa", "participou", "rescinde", "rescindiu", "institui", "instituiu", "implementa", "implementou",
     ),
     "politica": (
         "declara", "declarou", "anuncia", "anunciou", "articula", "articulou", "filia", "filiou",
-        "rompe", "rompeu", "apoia", "apoiou",
+        "rompe", "rompeu", "apoia", "apoiou", "substitui", "substituiu", "oficializa", "oficializou",
+        "confirma", "confirmou", "lanca", "lancou", "defende", "defendeu", "sugere", "sugeriu",
     ),
 }
 
 _CONTEXT = {
-    "servico": ("vaga", "emprego", "inscricao", "prazo", "abastecimento", "agua", "energia", "transito", "beneficio", "concurso", "inmet"),
-    "saude": ("saude", "hospital", "vacina", "vacinacao", "paciente", "doenca", "cirurgia", "medicamento", "sus"),
+    "servico": (
+        "vaga", "inscricao", "prazo", "abastecimento", "agua", "energia", "transito", "beneficio", "concurso",
+        "inmet", "procon", "receita federal", "bolsa familia", "nis", "consulta", "calendario", "pagamento",
+        "combustivel", "gasolina", "etanol", "diesel",
+    ),
+    "saude": (
+        "saude", "hospital", "vacina", "vacinacao", "paciente", "doenca", "cirurgia", "medicamento", "sus",
+        "bariatrica", "procedimento", "autismo", "autista",
+    ),
     "educacao": ("educacao", "escola", "universidade", "faculdade", "enem", "professor", "aluno", "matricula", "curso"),
-    "economia": ("economia", "emprego", "empresa", "mei", "imposto", "restituicao", "mercado", "preco", "salario", "turismo"),
-    "justica": ("justica", "juiz", "juiza", "tribunal", "stf", "stj", "tjp", "sentenca", "acao", "liminar", "alvara", "inquerito"),
+    "economia": (
+        "economia", "empresa", "mei", "imposto", "restituicao", "mercado", "preco", "salario", "turismo",
+        "tarifa", "exportacao", "importacao", "tributacao", "comercio exterior", "mercadoria",
+    ),
+    "justica": (
+        "justica", "juiz", "juiza", "tribunal", "stf", "stj", "tjp", "sentenca", "acao", "liminar", "alvara",
+        "inquerito", "vara", "magistrado", "magistrada", "tre-pb", "tre", "justica eleitoral",
+    ),
     "esportes": ("futebol", "campeonato", "clube", "jogo", "atleta", "time", "botafogo-pb", "treze", "campinense"),
-    "cultura": ("show", "musica", "cantor", "cantora", "filme", "festival", "livro", "teatro", "cultura"),
-    "meio_ambiente": ("ambiental", "meio ambiente", "queimada", "poluicao", "rio", "praia", "desmatamento", "fauna", "flora"),
-    "institucional": ("prefeitura", "governo", "secretaria", "gestao", "obra", "solenidade", "agenda"),
-    "politica": ("eleicao", "eleitoral", "candidato", "candidata", "prefeito", "governador", "deputado", "senador", "vereador", "partido", "chapa"),
+    "cultura": (
+        "show", "musica", "cantor", "cantora", "filme", "festival", "livro", "teatro", "cultura", "evento",
+        "programacao", "agenda",
+    ),
+    "meio_ambiente": (
+        "ambiental", "meio ambiente", "queimada", "poluicao", "rio", "praia", "desmatamento", "fauna", "flora",
+        "chuva", "chuvas", "precipitacao", "pluviometrico", "milimetros", "alagamento", "defesa civil", "inmet",
+    ),
+    "institucional": (
+        "prefeitura", "governo", "secretaria", "gestao", "obra", "solenidade", "agenda", "contrato publico",
+        "obra publica", "plano estadual", "programa governamental", "politica publica", "orgao publico",
+    ),
+    "politica": (
+        "eleicao", "eleitoral", "candidato", "candidata", "pre-candidato", "pre-candidata", "prefeito", "governador",
+        "deputado", "senador", "vereador", "partido", "chapa", "vice", "candidatura", "convencao", "senado",
+    ),
 }
+
+_POLITICAL_DOMINANT = (
+    "pre-candidato", "pre-candidata", "candidato ao", "candidata a", "candidatura", "partido", "convencao eleitoral",
+    "vaga de vice", "escolha do vice", "chapa governista", "chapa eleitoral", "pre-candidato ao senado",
+    "pre-candidato ao governo", "eleicoes 2026",
+)
+_JUDICIAL_DOMINANT = (
+    "justica concede", "justica determina", "justica autoriza", "juiz determina", "juiza determina", "juiza concede",
+    "tribunal determina", "tre-pb", "justica eleitoral", "decisao judicial", "prisao domiciliar",
+)
+_SERVICE_DOMINANT = (
+    "procon", "receita federal", "bolsa familia", "calendario de pagamento", "abre consulta", "consulta a restituicao",
+)
+_ENVIRONMENT_DOMINANT = ("inmet", "chuvas intensas", "alerta de chuva", "volume de chuva", "acumulado de chuva")
+_POLICE_DOMINANT = ("indiciado", "preso em flagrante", "policia civil", "delegacia", "maus-tratos", "maus tratos")
 
 
 def _ascii(value: Any) -> str:
@@ -232,12 +303,27 @@ def classify_editorial(item: dict[str, Any]) -> tuple[str, float, list[str]]:
     summary = _ascii(_summary(item))
     text = f"{title} {summary}"
 
+    # Hierarquia de sinais dominantes: fato principal antes de tema secundário.
+    if _contains(title, _JUDICIAL_DOMINANT):
+        return "justica", 0.99, ["sinal judicial dominante no título"]
+    if _contains(text, _POLITICAL_DOMINANT):
+        return "politica", 0.99, ["contexto eleitoral ou partidário dominante"]
+    if _contains(title, _POLICE_DOMINANT):
+        return "policial", 0.99, ["sinal policial dominante no título"]
+    if _contains(title, _ENVIRONMENT_DOMINANT):
+        return "meio_ambiente", 0.99, ["alerta ou ocorrência meteorológica dominante"]
+    if _contains(title, _SERVICE_DOMINANT):
+        return "servico", 0.99, ["informação prática de serviço ao cidadão"]
+
     # Expressões específicas prevalecem sobre palavras isoladas.
-    for category in ("policial", "justica", "servico", "saude", "educacao", "economia", "esportes", "cultura", "meio_ambiente", "institucional", "politica"):
+    for category in (
+        "policial", "justica", "servico", "saude", "educacao", "economia", "esportes",
+        "cultura", "meio_ambiente", "institucional", "politica",
+    ):
         if _contains(title, _EXPRESSIONS[category]):
             return category, 0.98, ["expressão editorial no título"]
 
-    # O acontecimento principal do título prevalece sobre a profissão ou personagem.
+    # Ocorrências policiais e acidentes prevalecem sobre profissão ou personagem.
     if _contains(title, _EVENTS["policial"]) or _contains(title, (
         "policia", "prisao", "suspeito", "suspeita", "foragido", "foragida", "homicidio",
         "feminicidio", "assassinato", "assalto", "roubo", "furto", "trafico", "faccao",
@@ -268,15 +354,18 @@ def classify_editorial(item: dict[str, Any]) -> tuple[str, float, list[str]]:
     if _contains(title, _EVENTS["politica"]) and _contains(text, _CONTEXT["politica"]):
         return "politica", 0.86, ["evento político no título"]
 
-    # Temas de apoio, usados apenas quando nenhum evento dominante foi identificado.
-    for category in ("justica", "esportes", "servico", "saude", "educacao", "economia", "cultura", "meio_ambiente", "institucional", "politica"):
-        if _contains(text, _CONTEXT[category]):
-            return category, 0.78, ["tema editorial predominante"]
-
+    # Levantamentos sobre violência são policiais; demais temas usam o contexto específico.
     if _contains(text, ("anuario", "ranking", "dados mostram", "registra alta", "aumento de", "taxa de", "indice de")):
         if _contains(text, ("violencia", "violenta", "violento", "criminalidade", "roubo", "furto", "homicidio", "assassinato", "seguranca publica")):
             return "policial", 0.91, ["levantamento sobre criminalidade"]
-        return "geral", 0.82, ["levantamento estatístico"]
+
+    # Temas de apoio, usados apenas quando nenhum evento dominante foi identificado.
+    for category in (
+        "justica", "esportes", "servico", "saude", "educacao", "economia", "cultura",
+        "meio_ambiente", "institucional", "politica",
+    ):
+        if _contains(text, _CONTEXT[category]):
+            return category, 0.78, ["tema editorial predominante"]
 
     original = _ascii(_get(item, "classificacao_editorial", "editoria", "categoria", "category", default="geral")).replace(" ", "_")
     if original == "seguranca":
@@ -303,6 +392,10 @@ def editorial_priority(item: dict[str, Any], now: datetime | None = None) -> flo
         base += 34
     if _contains(text, ("urgente", "agora", "alerta", "interditado", "desaparecido")):
         base += 18
+    if _contains(text, ("anuncia parceria", "reforca a proposta da marca", "influenciadora parceira", "empresa comemora", "marca lanca")):
+        base -= 18
+    if category == "politica" and _contains(text, ("defende", "destaca", "relembra", "sugere")):
+        base -= 8
     published = _parse_datetime(_published(item))
     if published:
         age = max(0.0, (now - published).total_seconds() / 3600)
