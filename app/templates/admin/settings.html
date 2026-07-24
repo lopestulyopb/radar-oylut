@@ -1,0 +1,32 @@
+{% extends 'admin/base.html' %}
+{% block title %}Configurações{% endblock %}
+{% block heading %}Configurações{% endblock %}
+{% block content %}
+{% if request.query_params.get('salvo') %}<p class="alert">Configurações salvas.</p>{% endif %}
+<section class="panel">
+  <h2>Operação do Radar</h2>
+  <p class="muted">As mudanças passam a valer nas próximas requisições, sem alteração manual no código.</p>
+  <form class="stack-form" method="post" action="/admin/configuracoes">
+    <label>Limite diário padrão
+      <input type="number" name="daily_limit" min="1" max="1000" required value="{{ settings.daily_limit }}">
+    </label>
+    <label>Tempo do cache em segundos
+      <input type="number" name="cache_ttl_seconds" min="0" max="86400" required value="{{ settings.cache_ttl_seconds }}">
+    </label>
+    <label>Ordenação padrão
+      <select name="default_order">
+        <option value="editor_chefe" {% if settings.default_order=='editor_chefe' %}selected{% endif %}>Peso jornalístico</option>
+        <option value="recentes" {% if settings.default_order=='recentes' %}selected{% endif %}>Mais recentes</option>
+      </select>
+    </label>
+    <label>Versão exibida
+      <input type="text" name="app_version" required value="{{ settings.app_version }}">
+    </label>
+    <button type="submit">Salvar configurações</button>
+  </form>
+</section>
+<section class="panel" style="margin-top:18px">
+  <h2>Exceção administrativa</h2>
+  <p class="muted">O usuário proprietário configurado no sistema possui pesquisas ilimitadas. Os demais continuam seguindo o limite diário definido acima.</p>
+</section>
+{% endblock %}
