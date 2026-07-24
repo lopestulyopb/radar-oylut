@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contato | Radar Oylut</title>
+  <link rel="stylesheet" href="/static/style.css?v=20260724-3">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-title"><a class="back-link" href="/" aria-label="Voltar ao Radar">←</a><div><div class="brand">OYLUT</div><h1>Contato</h1></div></div>
+  </header>
+  <main class="support-shell">
+    <section class="support-card">
+      <p class="support-intro">Envie dúvidas, sugestões ou relatos sobre o funcionamento do Radar.</p>
+      <form class="support-form" action="https://formsubmit.co/radar.oylut@gmail.com" method="POST">
+        <input type="hidden" name="_subject" value="[RADAR] Novo contato">
+        <input type="hidden" name="_template" value="table">
+        <input type="hidden" name="_captcha" value="false">
+        <input type="hidden" name="_next" value="https://radar-oylut.onrender.com/static/mensagem-enviada.html">
+        <input type="hidden" id="contact-user" name="Usuário" value="Não identificado">
+        <input type="hidden" id="contact-date" name="Data e hora">
+        <input type="hidden" id="contact-browser" name="Navegador">
+        <input type="hidden" name="Versão" value="Radar Oylut 6.5">
+
+        <label for="contact-subject">Assunto</label>
+        <select id="contact-subject" name="Assunto" required>
+          <option value="">Selecione</option>
+          <option>Dúvida</option>
+          <option>Sugestão</option>
+          <option>Problema técnico</option>
+          <option>Financeiro</option>
+          <option>Outro</option>
+        </select>
+
+        <label for="contact-message">Mensagem</label>
+        <textarea id="contact-message" name="Mensagem" rows="10" required placeholder="Escreva sua mensagem."></textarea>
+
+        <button type="submit">Enviar mensagem</button>
+      </form>
+      <p class="support-contact">As mensagens são encaminhadas para <strong>radar.oylut@gmail.com</strong>.</p>
+    </section>
+  </main>
+  <script>
+    const params=new URLSearchParams(location.search);
+    const email=params.get('email');
+    if(email)document.getElementById('contact-user').value=email;
+    document.getElementById('contact-date').value=new Date().toLocaleString('pt-BR');
+    document.getElementById('contact-browser').value=navigator.userAgent;
+    const type=document.getElementById('contact-subject');
+    const subject=document.querySelector('input[name="_subject"]');
+    type.addEventListener('change',()=>{subject.value=`[RADAR] Contato - ${type.value||'Nova mensagem'}`});
+  </script>
+</body>
+</html>
